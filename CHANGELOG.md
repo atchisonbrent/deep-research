@@ -4,6 +4,12 @@ All notable changes to this project are documented here. This project follows [S
 
 
 
+
+## [0.1.3] - 2026-08-31
+
+### Features
+
+- install skills from latest published release
 ## [0.1.2] - 2026-08-31
 
 ### Features
@@ -27,3 +33,4 @@ All notable changes to this project are documented here. This project follows [S
 [0.1.0]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.0
 [0.1.1]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.1
 [0.1.2]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.2
+[0.1.3]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.3
