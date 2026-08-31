@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": 1,
+      "url": "https://example.com/source",
+      "title": "Example source",
+      "accessed": "2026-08-31"
+    }
+  ]
+}

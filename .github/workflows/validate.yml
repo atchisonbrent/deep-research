@@ -1,0 +1,38 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  reports:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Validate the synthetic report fixture through the CLI
+        run: python3 tools/reportctl.py validate tests/fixtures/minimal-report
+      - name: Validate every report
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+
+          reports = sorted(Path("reports").glob("[0-9][0-9][0-9][0-9]/[0-9][0-9]/*/assessment.json"))
+          for assessment in reports:
+              subprocess.run(
+                  ["python3", "tools/reportctl.py", "validate", str(assessment.parent)],
+                  check=True,
+              )
+          PY
+      - name: Check generated index
+        run: python3 tools/reportctl.py index --check
+      - name: Scan for high-confidence sensitive material
+        run: python3 tools/reportctl.py scan-sensitive

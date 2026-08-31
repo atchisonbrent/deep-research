@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "report": {
+    "slug": "minimal-report",
+    "title": "Minimal report",
+    "cutoff": "2026-08-31T10:49:00Z",
+    "created": "2026-08-31T10:49:00Z",
+    "updated": "2026-08-31T10:49:00Z",
+    "status": "draft",
+    "summary": "The event probably occurred, with incomplete corroboration.",
+    "questions": [
+      "Did the event occur?"
+    ],
+    "lineage": {
+      "supersedes": null,
+      "superseded_by": null
+    },
+    "mode": "general",
+    "domain": "testing"
+  },
+  "sources": [
+    {
+      "id": 1,
+      "url": "https://example.com/source",
+      "title": "Example source",
+      "publisher": "Example",
+      "authors": [
+        {
+          "name": "Example Author",
+          "expertise_evidence": "unknown",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": null
+        }
+      ],
+      "published_at": "2026-08-31T09:00:00Z",
+      "retrieved_at": "2026-08-31T10:00:00Z",
+      "source_type": "primary-record",
+      "access": "full",
+      "directness": "direct",
+      "independence_group": "example-primary-record",
+      "incentives": [
+        "The publisher is the event participant."
+      ],
+      "limitations": [
+        "No independent corroboration was available at cutoff."
+      ],
+      "reliability": {
+        "publisher_history": "unknown",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "The record is direct but self-interested and not independently corroborated."
+      },
+      "independence_rationale": "The claim is based on the participant’s direct public record and no other evidence path."
+    }
+  ],
+  "claims": [
+    {
+      "id": "C1",
+      "statement": "The event occurred.",
+      "kind": "fact",
+      "status": "probable",
+      "importance": "load-bearing",
+      "confidence": [
+        0.55,
+        0.75
+      ],
+      "source_ids": [
+        1
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "A direct but self-interested record supports the claim without independent corroboration.",
+      "falsifiers": [
+        "Authenticated evidence that the record was fabricated."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_id": 1,
+      "excerpt": "The event occurred.",
+      "location": "record body",
+      "supports_claim_ids": [
+        "C1"
+      ],
+      "captured_at": "2026-08-31T10:00:00Z"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "H1",
+      "statement": "The event occurred substantially as the direct record describes.",
+      "probability": {
+        "low": 0.55,
+        "central": 0.65,
+        "high": 0.75
+      },
+      "basis_claim_ids": [
+        "C1"
+      ],
+      "alternatives": [
+        "The record is materially misleading or fabricated."
+      ],
+      "update_triggers": [
+        "Independent corroboration or contradiction appears."
+      ],
+      "rationale": "Direct evidence moves the assessment above even odds, while absent corroboration keeps the interval wide.",
+      "resolution": {
+        "status": "open",
+        "outcome": null,
+        "resolved_at": null
+      }
+    }
+  ],
+  "coverage_gaps": [
+    "No independent corroboration was available."
+  ],
+  "review": {
+    "deterministic_checks": [
+      "reportctl validate"
+    ],
+    "independent_review": "not-run",
+    "notes": "Fixture report; independent review is not required."
+  }
+}
