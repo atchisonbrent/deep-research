@@ -11,7 +11,7 @@ The core tool is Python-standard-library-only. Hermes Agent is an optional integ
 
 The reusable Hermes skill is public at [`skills/deep-research/`](skills/deep-research/). It defines the research workflow and mode routing; the framework CLI enforces the durable report contract.
 
-**Current release:** [`v0.1.0`](https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.0). See [`RELEASING.md`](RELEASING.md) for the automated release contract and [`CHANGELOG.md`](CHANGELOG.md) for version history.
+**Releases:** [latest](https://github.com/atchisonbrent/deep-research/releases/latest). See [`RELEASING.md`](RELEASING.md) for the eager release contract and [`CHANGELOG.md`](CHANGELOG.md) for version history.
 
 This repository contains the **public machinery**, not anyone’s private research archive. Clone or fork it directly for public reports, or pin it as a submodule inside a private report vault and run `reportctl.py --root <vault>`.
 

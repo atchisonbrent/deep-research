@@ -52,13 +52,58 @@ jobs:
         run: python3 tools/reportctl.py scan-sensitive
 
   release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.repository == 'atchisonbrent/deep-research' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch')
     needs: reports
     runs-on: ubuntu-latest
+    concurrency:
+      group: eager-release-main
+      cancel-in-progress: false
     permissions:
       contents: write
-      issues: write
-      pull-requests: write
     steps:
-      - name: Maintain release PR or publish merged release
-        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Ignore a stale main revision
+        id: freshness
+        run: |
+          git fetch origin main --tags
+          if test "$(git rev-parse origin/main)" = "${GITHUB_SHA}"; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Plan release
+        if: steps.freshness.outputs.current == 'true'
+        id: plan
+        run: python3 tools/release.py plan --github-output "$GITHUB_OUTPUT"
+      - name: Reconcile the latest tag with its GitHub Release
+        if: steps.freshness.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.plan.outputs.base_tag }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+      - name: Apply and validate release mutation
+        if: steps.plan.outputs.release == 'true'
+        run: |
+          python3 tools/release.py apply --notes /tmp/release-notes.md
+          python3 -m unittest discover -s tests -v
+          python3 tools/reportctl.py validate tests/fixtures/minimal-report
+          python3 tools/reportctl.py validate examples/iran-war-six-month-assessment
+          python3 tools/reportctl.py scan-sensitive
+          git diff --check
+      - name: Commit, tag, and publish
+        if: steps.plan.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md release.json version.txt skills/deep-research/SKILL.md
+          git commit -m "chore: release v${VERSION} [skip ci]"
+          git tag -a "v${VERSION}" -m "deep-research v${VERSION}"
+          git push --atomic origin HEAD:main "v${VERSION}"
+          gh release create "v${VERSION}" --verify-tag --title "v${VERSION}" --notes-file /tmp/release-notes.md

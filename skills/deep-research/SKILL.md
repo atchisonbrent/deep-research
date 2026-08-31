@@ -1,7 +1,7 @@
 ---
 name: deep-research
 description: Research complex questions with auditable evidence.
-version: 0.1.0 # x-release-please-version
+version: 0.1.0 # x-release-version
 author: Brent Atchison (atchisonbrent), Helion
 license: MIT
 platforms: [macos, linux]

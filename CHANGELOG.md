@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) and is released through a human-reviewed Release Please PR.
+All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) and publishes eagerly after validation of releasable Conventional Commits.
 
 ## [0.1.0] - 2026-08-31
 

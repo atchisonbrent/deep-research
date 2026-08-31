@@ -74,18 +74,17 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
     def test_release_contract_and_skill_version_are_synchronized(self) -> None:
         skill = SKILL.read_text(encoding="utf-8")
         version = (ROOT / "version.txt").read_text(encoding="utf-8").strip()
-        manifest = json.loads((ROOT / ".release-please-manifest.json").read_text(encoding="utf-8"))
-        config = json.loads((ROOT / "release-please-config.json").read_text(encoding="utf-8"))
+        manifest = json.loads((ROOT / "release.json").read_text(encoding="utf-8"))
         workflow = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
 
-        self.assertRegex(skill, rf"(?m)^version: {re.escape(version)} # x-release-please-version$")
-        self.assertEqual(version, manifest["."])
-        package = config["packages"]["."]
-        self.assertEqual("simple", package["release-type"])
-        self.assertTrue(package["bump-minor-pre-major"])
-        self.assertTrue(package["bump-patch-for-minor-pre-major"])
-        self.assertIn({"type": "generic", "path": "skills/deep-research/SKILL.md"}, package["extra-files"])
-        self.assertIn("googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071", workflow)
+        self.assertRegex(skill, rf"(?m)^version: {re.escape(version)} # x-release-version$")
+        self.assertEqual(version, manifest["version"])
+        self.assertEqual(1, manifest["schema_version"])
+        self.assertIn("python3 tools/release.py plan", workflow)
+        self.assertIn("python3 tools/release.py apply", workflow)
+        self.assertIn("gh release create", workflow)
+        self.assertNotIn("release-please-action", workflow)
+        self.assertTrue((ROOT / "tools" / "release.py").is_file())
         self.assertTrue((ROOT / "RELEASING.md").is_file())
         self.assertTrue((ROOT / "CHANGELOG.md").is_file())
 
