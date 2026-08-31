@@ -5,6 +5,12 @@ All notable changes to this project are documented here. This project follows [S
 
 
 
+
+## [0.1.4] - 2026-08-31
+
+### Bug Fixes
+
+- preserve rollback across installer versions
 ## [0.1.3] - 2026-08-31
 
 ### Features
@@ -34,3 +40,4 @@ All notable changes to this project are documented here. This project follows [S
 [0.1.1]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.1
 [0.1.2]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.2
 [0.1.3]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.3
+[0.1.4]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.4
