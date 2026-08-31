@@ -9,6 +9,8 @@ This repository is designed for:
 
 The core tool is Python-standard-library-only. Hermes Agent is an optional integration, not a runtime dependency. Start with [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
 
+The reusable Hermes skill is public at [`skills/deep-research/`](skills/deep-research/). It defines the research workflow and mode routing; the framework CLI enforces the durable report contract.
+
 This repository contains the **public machinery**, not anyone’s private research archive. Clone or fork it directly for public reports, or pin it as a submodule inside a private report vault and run `reportctl.py --root <vault>`.
 
 ## Report contract
@@ -58,6 +60,15 @@ python3 tools/reportctl.py index
 python3 tools/reportctl.py scan-sensitive
 python3 -m unittest discover -s tests -v
 ```
+
+## Hermes Agent skill
+
+Install or link `skills/deep-research/` into your Hermes skills directory, then configure `deep_research.repository` to point at either:
+
+- a private report vault containing this repository as `framework/`; or
+- this framework checkout itself, if the reports are intentionally public.
+
+The skill defaults to a private report vault. It requires explicit user intent before publishing report contents publicly; making the methodology public does not make anyone's research archive public.
 
 ## Method
 
