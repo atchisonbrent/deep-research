@@ -1,6 +1,6 @@
 # Quickstart
 
-The repository is usable with **Python 3.11+ and Git only**. Hermes Agent improves retrieval and automation but is not required for the report format, source ledger, validator, index, tests, or CI.
+The deterministic report tooling runs with **Python 3.11+ and Git only**. That tooling does **not** conduct research autonomously: it does not retrieve sources, assess credibility, assign probabilities, or write conclusions. For the intended automated workflow, use the included skill with Hermes Agent, Claude Code, Codex, or OpenCode. Without an AI agent, a human can still fill the report schema manually and use Python to manage citations and validate the artifact.
 
 ## 1. Clone and test
 
@@ -35,6 +35,8 @@ The submodule commit makes validation reproducible. Updating the framework is a 
 
 ## 2. Initialize a report
 
+This creates a deliberately incomplete scaffold. It is not a generated research result. An AI agent or human researcher must replace the placeholders after collecting and evaluating evidence.
+
 ```bash
 python3 tools/reportctl.py init \
   --slug next-frontier-models \
@@ -66,7 +68,7 @@ python3 tools/reportctl.py add-source "$REPORT" \
 
 The command prints a stable numeric source ID. Registering the same URL again returns the existing ID.
 
-Populate the matching detailed source record in `assessment.json`: publisher, author evidence, source type, access, directness, independence group and rationale, incentives, limitations, and reliability dimensions.
+Populate the matching detailed source record in `assessment.json`: publisher, author evidence, source type, access, directness, independence group and rationale, incentives, limitations, and reliability dimensions. These values are analyst judgments supported by evidence; `reportctl.py` validates their shape and downstream consistency but does not invent or independently score them.
 
 ## 4. Verify a short quotation
 
@@ -103,7 +105,7 @@ python3 -m unittest discover -s tests -v
 git diff --check
 ```
 
-The validator checks source/claim/evidence integrity, independence-aware confidence guardrails, citation scope and coverage, report lineage, review state, and forecast requirements.
+The validator checks source/claim/evidence integrity, independence-aware confidence guardrails, citation scope and coverage, report lineage, review state, and forecast requirements. Passing validation means the report satisfies the declared audit contract—not that Python has proven the report true.
 
 ## 7. Publish or integrate
 

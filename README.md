@@ -1,15 +1,24 @@
 # Deep Research
 
-An open, standard-library-only framework for versioned, evidence-backed deep research across technology, markets, companies, policy, science, products, forecasts, and modern events.
+An open framework for AI-assisted, versioned, evidence-backed deep research across technology, markets, companies, policy, science, products, forecasts, and modern events.
 
 This repository is designed for:
 
 - **People**, who need a decision-grade answer without replaying the news cycle or rediscovering an entire technical or market landscape.
 - **Research agents and automation**, which need a durable, machine-readable evidence and uncertainty record that can be updated without rediscovering prior work.
 
-The core tool is Python-standard-library-only. Hermes Agent is an optional integration, not a runtime dependency. Start with [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
+## What this is
 
-The reusable Hermes skill is public at [`skills/deep-research/`](skills/deep-research/). It defines the research workflow and mode routing; the framework CLI enforces the durable report contract.
+This project has two cooperating parts:
+
+1. **An Agent Skills research workflow** for Hermes Agent, Claude Code, Codex, and OpenCode. The AI agent frames the question, retrieves and reads sources, evaluates authors and evidence, decomposes claims, considers alternatives, assigns justified confidence ranges, and writes the report.
+2. **A Python evidence and validation framework.** `reportctl.py` creates report scaffolding, maintains stable source IDs, verifies quoted text against supplied source extracts, renders citations, checks the structured claim/evidence graph, enforces selected confidence guardrails, scans for sensitive material, and validates the finished artifact.
+
+**Python does not perform the research or grade truth automatically.** It does not browse the web, decide whether Reuters or a named researcher is trustworthy, infer source independence, assign probabilities, or write the verdict. Those are analytical judgments made by the AI agent—or by a human using the same schema. Python checks that those judgments are explicit, internally consistent, traceable to evidence, and within the framework's declared guardrails.
+
+The deterministic tooling is Python-standard-library-only. An AI agent is required for the intended automated research experience; without one, the repository is a manual research template and validator rather than an autonomous researcher. Start with [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
+
+The reusable cross-agent skill is public at [`skills/deep-research/`](skills/deep-research/). It defines the research workflow and mode routing; the framework CLI enforces the durable report contract.
 
 The same Agent Skills package works with **Hermes Agent, Claude Code, Codex, and OpenCode**. See [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md), or install all user-level adapters from a stable clone:
 
@@ -71,14 +80,28 @@ python3 tools/reportctl.py scan-sensitive
 python3 -m unittest discover -s tests -v
 ```
 
-## Hermes Agent skill
+## AI-agent integration
 
-Install or link `skills/deep-research/` into your Hermes skills directory, then configure `deep_research.repository` to point at either:
+Install or link `skills/deep-research/` into a supported agent's skill directory, then point the workflow at either:
 
 - a private report vault containing this repository as `framework/`; or
 - this framework checkout itself, if the reports are intentionally public.
 
-The skill defaults to a private report vault. It requires explicit user intent before publishing report contents publicly; making the methodology public does not make anyone's research archive public.
+See [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) for Hermes Agent, Claude Code, Codex, and OpenCode locations and invocation syntax. The workflow defaults to a private report vault. It requires explicit user intent before publishing report contents publicly; making the methodology public does not make anyone's research archive public.
+
+## What the validator can and cannot establish
+
+The validator can establish facts about the **research artifact**, such as:
+
+- every referenced source and claim ID exists;
+- load-bearing factual claims have supporting sources and short evidence excerpts;
+- a claim marked `confirmed` has either full direct evidence or two declared independence groups;
+- a single indirect evidence group cannot receive an implausibly narrow or greater-than-95% confidence range;
+- citations resolve and cover the prose/table units they are attached to;
+- forecast reports contain hypotheses, ranges, alternatives, and update triggers;
+- source, report-lineage, review-state, and sensitive-content rules are satisfied.
+
+It cannot establish that a source is actually independent merely because an analyst labeled it so, that an excerpt entails the conclusion, or that a probability range is objectively correct. Those remain reviewable analytical judgments. The structured files make the judgments inspectable instead of hiding them in fluent prose.
 
 ## Method
 
