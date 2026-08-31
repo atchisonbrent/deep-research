@@ -246,8 +246,8 @@ def apply(plan: Plan, notes_path: Path | None = None) -> None:
     VERSION_FILE.write_text(version + "\n", encoding="utf-8")
     replace_once(
         SKILL_FILE,
-        r"^version: \d+\.\d+\.\d+ # x-release-version$",
-        f"version: {version} # x-release-version",
+        r'^  version: "\d+\.\d+\.\d+" # x-release-version$',
+        f'  version: "{version}" # x-release-version',
     )
     manifest = json.loads(MANIFEST_FILE.read_text(encoding="utf-8"))
     manifest["version"] = version

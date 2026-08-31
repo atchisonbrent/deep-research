@@ -1,19 +1,11 @@
 ---
 name: deep-research
-description: Research complex questions with auditable evidence.
-version: 0.1.1 # x-release-version
-author: Brent Atchison (atchisonbrent), Helion
+description: Use for complex, contested, or fast-changing research requiring auditable evidence and calibrated uncertainty.
 license: MIT
-platforms: [macos, linux]
+compatibility: Hermes Agent, Claude Code, Codex, and OpenCode with Python 3.11+, Git, shell access, and web retrieval
 metadata:
-  hermes:
-    tags: [Research, Technology, Markets, OSINT, Fact-Checking, Forecasting]
-    related_skills: [grounded-citations, product-buying-research, arxiv, competitor-news-monitor, quota-aware-independent-review, structured-agent-handoff, safe-repository-automation]
-    config:
-      - key: deep_research.repository
-        description: Path to the research report vault
-        default: "~/workspace/research-reports"
-        prompt: Research report vault path
+  author: Brent Atchison (atchisonbrent), Helion
+  version: "0.1.1" # x-release-version
 ---
 
 # Deep Research
@@ -36,9 +28,9 @@ Do not use for a quick uncontested lookup, a conventional academic-paper writing
 
 ## Prerequisites
 
-Load `grounded-citations` for citation semantics before retrieval. Load `arxiv` for scientific literature, `competitor-news-monitor` when converting research into a recurring company watch, and `product-buying-research` for live purchase decisions. This is a Hermes workflow over a self-contained repository contract. A separate report vault normally pins this public framework under `framework/`; the framework checkout itself may also be used as the vault.
+When the current agent exposes related skills, load `grounded-citations` for citation semantics before retrieval, `arxiv` for scientific literature, `competitor-news-monitor` when converting research into a recurring company watch, and `product-buying-research` for live purchase decisions. Their absence is not fatal: apply the equivalent evidence rules in this skill and record any lost specialist coverage. This is a cross-agent workflow over a self-contained repository contract. A separate report vault normally pins this public framework under `framework/`; the framework checkout itself may also be used as the vault.
 
-Resolve `deep_research.repository` from the injected skill config, expand `~`, and set:
+Resolve the report vault in this order: injected `deep_research.repository` configuration when the agent supports it; `DEEP_RESEARCH_REPOSITORY`; the current repository when it contains `tools/reportctl.py`; then `~/workspace/research-reports`. Expand `~`, and set:
 
 ```bash
 REPO="<resolved deep_research.repository>"
@@ -79,7 +71,7 @@ python3 "$TOOL" --root "$REPO" index --check
 python3 "$TOOL" --root "$REPO" scan-sensitive
 ```
 
-Invoke commands through `terminal`. Use `web_search` for discovery and `web_extract` for actual page evidence. Use the browser only when extraction fails or dynamic content is load-bearing.
+Invoke commands through the agent's shell tool. Use its web-search capability for discovery and its fetch/extract capability for actual page evidence. Use a browser only when extraction fails or dynamic content is load-bearing. Tool names differ across Hermes, Claude Code, Codex, and OpenCode; the evidence standard does not. If the active agent has no web retrieval, stop with an explicit coverage gap rather than inventing current evidence.
 
 ## Procedure
 
@@ -243,7 +235,7 @@ Completion: `assessment.json.review` records the exact frozen revision, actual r
 
 ### 11. Publish as immutable-at-cutoff history
 
-Load `safe-repository-automation`. Update the generated index, inspect the complete diff, and verify that the configured `origin` resolves to the intended repository and that GitHub reports the **expected visibility** before any push. Default to a private vault. Publishing report contents publicly requires explicit user intent after the sensitive-content scan. Commit, push, read back the exact remote revision, and require the repository’s actual CI run to succeed before claiming publication. A later update links to the prior report and records what changed; it does not rewrite the old report into retrospective perfection.
+When available, load `safe-repository-automation`; otherwise apply its fail-closed publication invariants here. Update the generated index, inspect the complete diff, and verify that the configured `origin` resolves to the intended repository and that GitHub reports the **expected visibility** before any push. Default to a private vault. Publishing report contents publicly requires explicit user intent after the sensitive-content scan. Commit, push, read back the exact remote revision, and require the repository’s actual CI run to succeed before claiming publication. A later update links to the prior report and records what changed; it does not rewrite the old report into retrospective perfection.
 
 Completion: local and remote branches match, CI is green, and the report is browsable from `reports/index.md`.
 

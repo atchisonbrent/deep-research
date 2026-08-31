@@ -56,7 +56,7 @@ class ReleaseToolTests(unittest.TestCase):
             root = Path(temporary)
             skill = root / "skills" / "deep-research" / "SKILL.md"
             skill.parent.mkdir(parents=True)
-            skill.write_text("---\nversion: 0.1.0 # x-release-version\n---\n", encoding="utf-8")
+            skill.write_text('---\nmetadata:\n  version: "0.1.0" # x-release-version\n---\n', encoding="utf-8")
             (root / "version.txt").write_text("0.1.0\n", encoding="utf-8")
             (root / "release.json").write_text('{"schema_version": 1, "version": "0.1.0"}\n', encoding="utf-8")
             (root / "CHANGELOG.md").write_text("# Changelog\n\nIntro.\n\n## [0.1.0] - 2026-08-31\n", encoding="utf-8")
@@ -88,7 +88,7 @@ class ReleaseToolTests(unittest.TestCase):
                 release_tool.apply(plan, notes)
 
             self.assertEqual("0.1.1", (root / "version.txt").read_text().strip())
-            self.assertIn("version: 0.1.1 # x-release-version", skill.read_text())
+            self.assertIn('  version: "0.1.1" # x-release-version', skill.read_text())
             self.assertEqual("0.1.1", json.loads((root / "release.json").read_text())["version"])
             self.assertIn("## [0.1.1]", (root / "CHANGELOG.md").read_text())
             self.assertIn("[0.1.1]: https://github.com/example/deep-research/releases/tag/v0.1.1", (root / "CHANGELOG.md").read_text())

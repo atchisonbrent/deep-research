@@ -17,9 +17,14 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
         text = SKILL.read_text(encoding="utf-8")
         self.assertTrue(text.startswith("---\n"))
         frontmatter, body = text[4:].split("\n---\n", 1)
+
         self.assertRegex(frontmatter, r"(?m)^name: deep-research$")
-        self.assertRegex(frontmatter, r"(?m)^description: .{1,60}\.$")
+        description = next(line.removeprefix("description: ") for line in frontmatter.splitlines() if line.startswith("description: "))
+        self.assertGreaterEqual(len(description), 1)
+        self.assertLessEqual(len(description), 1024)
+        self.assertTrue(description.startswith("Use for "))
         self.assertRegex(frontmatter, r"(?m)^license: MIT$")
+        self.assertRegex(frontmatter, r"(?m)^compatibility: .*Claude Code.*Codex.*OpenCode.*$")
 
         lowered = body.lower()
         required = (
@@ -70,6 +75,9 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
         text = SKILL.read_text(encoding="utf-8")
         for path in re.findall(r"`(references/[^`]+\.md)`", text):
             self.assertTrue((SKILL.parent / path).is_file(), path)
+        codex = (SKILL.parent / "agents" / "openai.yaml").read_text(encoding="utf-8")
+        self.assertIn("display_name: Deep Research", codex)
+        self.assertIn("allow_implicit_invocation: true", codex)
 
     def test_release_contract_and_skill_version_are_synchronized(self) -> None:
         skill = SKILL.read_text(encoding="utf-8")
@@ -77,7 +85,7 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
         manifest = json.loads((ROOT / "release.json").read_text(encoding="utf-8"))
         workflow = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
 
-        self.assertRegex(skill, rf"(?m)^version: {re.escape(version)} # x-release-version$")
+        self.assertRegex(skill, rf'(?m)^  version: "{re.escape(version)}" # x-release-version$')
         self.assertEqual(version, manifest["version"])
         self.assertEqual(1, manifest["schema_version"])
         self.assertIn("python3 tools/release.py plan", workflow)
