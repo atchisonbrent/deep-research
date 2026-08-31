@@ -11,6 +11,8 @@ The core tool is Python-standard-library-only. Hermes Agent is an optional integ
 
 The reusable Hermes skill is public at [`skills/deep-research/`](skills/deep-research/). It defines the research workflow and mode routing; the framework CLI enforces the durable report contract.
 
+**Current release:** [`v0.1.0`](https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.0). See [`RELEASING.md`](RELEASING.md) for the automated release contract and [`CHANGELOG.md`](CHANGELOG.md) for version history.
+
 This repository contains the **public machinery**, not anyone’s private research archive. Clone or fork it directly for public reports, or pin it as a submodule inside a private report vault and run `reportctl.py --root <vault>`.
 
 ## Report contract
@@ -27,9 +29,11 @@ reports/YYYY/MM/<slug>/
 
 The repository deliberately does **not** assign universal truth scores to outlets. Reliability is assessed at the claim level using source directness, independence, access, author expertise, transparency, incentives, corroboration, and contradictions.
 
-## Browse
+## Example output
 
-The framework’s `reports/` directory is intentionally empty. A consuming repository keeps its own reports chronological and retains each original cutoff. Material updates create a linked update instead of silently rewriting what was knowable earlier.
+The public repository includes a real, validated [Iran war six-month assessment](examples/iran-war-six-month-assessment/report.md), plus its [structured assessment](examples/iran-war-six-month-assessment/assessment.json) and [source ledger](examples/iran-war-six-month-assessment/sources-ledger.json). It is preserved at its stated cutoff rather than silently updated after the fact.
+
+Consumer vaults keep their own reports chronological and retain each original cutoff. Material updates create a linked update instead of silently rewriting what was knowable earlier.
 
 ## Create a report
 

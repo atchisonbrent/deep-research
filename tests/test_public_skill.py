@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import json
 import unittest
 from pathlib import Path
 
@@ -69,6 +70,30 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
         text = SKILL.read_text(encoding="utf-8")
         for path in re.findall(r"`(references/[^`]+\.md)`", text):
             self.assertTrue((SKILL.parent / path).is_file(), path)
+
+    def test_release_contract_and_skill_version_are_synchronized(self) -> None:
+        skill = SKILL.read_text(encoding="utf-8")
+        version = (ROOT / "version.txt").read_text(encoding="utf-8").strip()
+        manifest = json.loads((ROOT / ".release-please-manifest.json").read_text(encoding="utf-8"))
+        config = json.loads((ROOT / "release-please-config.json").read_text(encoding="utf-8"))
+        workflow = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
+
+        self.assertRegex(skill, rf"(?m)^version: {re.escape(version)} # x-release-please-version$")
+        self.assertEqual(version, manifest["."])
+        package = config["packages"]["."]
+        self.assertEqual("simple", package["release-type"])
+        self.assertTrue(package["bump-minor-pre-major"])
+        self.assertTrue(package["bump-patch-for-minor-pre-major"])
+        self.assertIn({"type": "generic", "path": "skills/deep-research/SKILL.md"}, package["extra-files"])
+        self.assertIn("googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071", workflow)
+        self.assertTrue((ROOT / "RELEASING.md").is_file())
+        self.assertTrue((ROOT / "CHANGELOG.md").is_file())
+
+    def test_repository_publishes_a_real_example_not_an_empty_reports_shelf(self) -> None:
+        example = ROOT / "examples" / "iran-war-six-month-assessment"
+        for filename in ("report.md", "assessment.json", "sources-ledger.json"):
+            self.assertTrue((example / filename).is_file(), filename)
+        self.assertFalse((ROOT / "reports" / "index.md").exists())
 
 
 if __name__ == "__main__":

@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": 1,
+      "url": "https://www.reuters.com/world/middle-east/six-consequences-six-months-war-iran-2026-08-27",
+      "title": "Reuters: Six consequences of six months of war in Iran",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 2,
+      "url": "https://www.reuters.com/world/china/after-six-months-iran-war-has-reached-its-endgame-costly-stalemate-2026-08-27",
+      "title": "Reuters: After six months, costly stalemate",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 3,
+      "url": "https://www.reuters.com/world/middle-east/us-forces-strike-two-iranian-launchers-irans-larak-island-us-official-says-2026-08-30",
+      "title": "Reuters: US strikes launchers on Larak Island",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 4,
+      "url": "https://apnews.com/article/middle-east-iran-israel-west-bank-august-27-2026-c457cd178b05f6c39c8c2e33f0a565ba",
+      "title": "AP: Regional powers seek off-ramp",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 5,
+      "url": "https://www.lloydslistintelligence.com/resources/blog/strait-of-hormuz-brief-19-august-2026",
+      "title": "Lloyd’s List Intelligence: Strait of Hormuz brief",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 6,
+      "url": "https://www.congress.gov/crs_external_products/R/PDF/R48887/R48887.1.pdf",
+      "title": "CRS: U.S. Conflict with Iran",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 7,
+      "url": "https://www.reuters.com/world/middle-east/iran-stored-highly-enriched-uranium-underground-site-iaea-report-says-2026-02-27",
+      "title": "Reuters: IAEA report on Iranian uranium and access",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 8,
+      "url": "https://www.iaea.org/sites/default/files/gov2026-8.pdf",
+      "title": "IAEA GOV/2026/8 safeguards report",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 9,
+      "url": "https://www.reuters.com/world/middle-east/us-intelligence-indicates-limited-new-damage-irans-nuclear-program-sources-say-2026-05-04",
+      "title": "Reuters: U.S. intelligence on Iran nuclear damage",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 10,
+      "url": "https://www.congress.gov/crs-product/IF12106",
+      "title": "CRS: Iran and Nuclear Weapons Production",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 11,
+      "url": "https://www.dni.gov/index.php/newsroom/press-releases/press-releases-2026/4142-pr-03-26",
+      "title": "ODNI: 2026 Annual Threat Assessment remarks",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 12,
+      "url": "https://www.reuters.com/world/middle-east/trump-approved-iran-operation-after-netanyahu-argued-joint-killing-khamenei-2026-03-23",
+      "title": "Reuters: Decision and Netanyahu lobbying investigation",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 13,
+      "url": "https://www.reuters.com/world/middle-east/us-legal-adviser-says-iran-war-justified-by-tehrans-aggression-over-decades-2026-04-24",
+      "title": "Reuters: Legal justification and imminence dispute",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 14,
+      "url": "https://www.theguardian.com/us-news/2026/mar/16/epstein-files-trump-iran-war",
+      "title": "Guardian: Epstein attention and Iran war",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 15,
+      "url": "https://www.imf.org/-/media/files/publications/reo/mcd-cca/2026/english/text.pdf",
+      "title": "IMF: April 2026 Regional Economic Outlook",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 16,
+      "url": "https://www.csis.org/analysis/iran-war-cost-estimate-update-113-billion-day-6-165-billion-day-12",
+      "title": "CSIS: Iran war cost estimate",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 17,
+      "url": "https://www.csis.org/analysis/how-tehrans-use-cyber-operations-us-iran-conflict-has-evolved",
+      "title": "CSIS: Evolution of Iranian cyber operations",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 18,
+      "url": "https://www.reuters.com/world/middle-east/us-can-only-confirm-about-third-irans-missile-arsenal-destroyed-sources-say-2026-03-27",
+      "title": "Reuters: U.S. intelligence on Iranian missile losses",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 19,
+      "url": "https://www.reuters.com/world/china/global-markets-global-markets-2026-08-31",
+      "title": "Reuters: Shares skid as oil and yields stay high",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 20,
+      "url": "https://www.reuters.com/world/middle-east/how-many-people-have-been-killed-us-israel-war-iran-2026-04-07",
+      "title": "Reuters: Documented Iran war death tolls",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 21,
+      "url": "https://www.npr.org/2026/08/31/g-s1-141175/attacks-flare-us-iran",
+      "title": "NPR: U.S.-Iran attacks flare after pause",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 22,
+      "url": "https://www.csmonitor.com/USA/Military/2026/0828/iran-war-trump-objectives-six-months",
+      "title": "Christian Science Monitor: U.S. objectives after six months",
+      "accessed": "2026-08-31"
+    },
+    {
+      "id": 23,
+      "url": "https://www.reuters.com/business/energy/six-months-war-how-middle-east-conflict-has-shaped-financial-markets-2026-08-27",
+      "title": "Reuters: Six months of war in financial markets",
+      "accessed": "2026-08-31"
+    }
+  ]
+}

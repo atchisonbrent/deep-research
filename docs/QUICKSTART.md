@@ -12,6 +12,8 @@ python3 -m unittest discover -s tests -v
 
 There are no third-party Python dependencies.
 
+To inspect a complete real-world artifact before creating your own, open [`examples/iran-war-six-month-assessment/report.md`](../examples/iran-war-six-month-assessment/report.md) alongside its `assessment.json` and `sources-ledger.json`.
+
 ### Private report vault with public machinery
 
 Keep actual reports in a separate private repository and pin this framework:

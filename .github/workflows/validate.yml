@@ -3,6 +3,7 @@ name: validate
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -32,7 +33,32 @@ jobs:
                   check=True,
               )
           PY
-      - name: Check generated index
-        run: python3 tools/reportctl.py index --check
+      - name: Validate published examples
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+
+          examples = sorted(Path("examples").glob("*/assessment.json"))
+          if not examples:
+              raise SystemExit("no public examples found")
+          for assessment in examples:
+              subprocess.run(
+                  ["python3", "tools/reportctl.py", "validate", str(assessment.parent)],
+                  check=True,
+              )
+          PY
       - name: Scan for high-confidence sensitive material
         run: python3 tools/reportctl.py scan-sensitive
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: reports
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Maintain release PR or publish merged release
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4

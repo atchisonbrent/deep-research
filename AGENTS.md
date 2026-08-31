@@ -27,7 +27,7 @@ Run before commit:
 
 ```bash
 python3 tools/reportctl.py validate <report-directory>
-python3 tools/reportctl.py index --check
+python3 tools/reportctl.py validate examples/iran-war-six-month-assessment
 python3 -m unittest discover -s tests -v
 git diff --check
 ```

@@ -1,0 +1,1596 @@
+{
+  "schema_version": 1,
+  "report": {
+    "slug": "iran-war-six-month-assessment",
+    "title": "Iran war — six-month truth assessment",
+    "cutoff": "2026-08-31T10:49:00Z",
+    "created": "2026-08-31T10:49:00Z",
+    "updated": "2026-08-31T10:49:00Z",
+    "status": "draft",
+    "summary": "A decisive U.S.-Israeli conventional campaign failed to produce its strategic end state; the war became a coercive stalemate centered on Hormuz, economic pressure, and asymmetric retaliation.",
+    "questions": [
+      "What is the current state and tempo of the war?",
+      "Which stated U.S., Israeli, and Iranian goals were achieved?",
+      "How real and imminent was the nuclear threat?",
+      "What does the evidence show about broader or hidden motives, including the Epstein-distraction claim?",
+      "What are the current global effects and likely next outcomes?"
+    ],
+    "lineage": {
+      "supersedes": null,
+      "superseded_by": null
+    },
+    "mode": "event-assessment",
+    "domain": "geopolitics"
+  },
+  "sources": [
+    {
+      "id": 1,
+      "url": "https://www.reuters.com/world/middle-east/six-consequences-six-months-war-iran-2026-08-27",
+      "title": "Reuters: Six consequences of six months of war in Iran",
+      "publisher": "Reuters",
+      "authors": [],
+      "published_at": "2026-08-27",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "secondary",
+      "independence_group": "reuters-six-month-synthesis",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Reporting combines direct records with attributed or anonymous-source material; each claim retains attribution."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Reuters six-month synthesis combining its own prior reporting, official records, and market data."
+    },
+    {
+      "id": 2,
+      "url": "https://www.reuters.com/world/china/after-six-months-iran-war-has-reached-its-endgame-costly-stalemate-2026-08-27",
+      "title": "Reuters: After six months, costly stalemate",
+      "publisher": "Reuters",
+      "authors": [
+        {
+          "name": "Samia Nakhoul",
+          "expertise_evidence": "Reuters author page and article identify long-running Middle East reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/samia-nakhoul/"
+        }
+      ],
+      "published_at": "2026-08-27",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "near-direct",
+      "independence_group": "reuters-stalemate-interviews",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Reporting combines direct records with attributed or anonymous-source material; each claim retains attribution."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "high",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Reuters interviews and analysis specific to the late-August stalemate and sanctions strategy."
+    },
+    {
+      "id": 3,
+      "url": "https://www.reuters.com/world/middle-east/us-forces-strike-two-iranian-launchers-irans-larak-island-us-official-says-2026-08-30",
+      "title": "Reuters: US strikes launchers on Larak Island",
+      "publisher": "Reuters",
+      "authors": [
+        {
+          "name": "Kanishka Singh",
+          "expertise_evidence": "Reuters author page identifies Washington breaking-news reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/kanishka-singh/"
+        },
+        {
+          "name": "Phil Stewart",
+          "expertise_evidence": "Reuters biography identifies extensive national-security and conflict reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/phil-stewart/"
+        }
+      ],
+      "published_at": "2026-08-30",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "near-direct",
+      "independence_group": "us-official-larak-and-iran-response",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "No item-specific limitation beyond ordinary access and reporting uncertainty was established."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "high",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "One Reuters report combining a U.S. official admission and Iranian acknowledgment of the same strike."
+    },
+    {
+      "id": 4,
+      "url": "https://apnews.com/article/middle-east-iran-israel-west-bank-august-27-2026-c457cd178b05f6c39c8c2e33f0a565ba",
+      "title": "AP: Regional powers seek off-ramp",
+      "publisher": "Associated Press",
+      "authors": [],
+      "published_at": "2026-08-27",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "near-direct",
+      "independence_group": "ap-regional-reporting",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Fast-moving regional roundup includes official and hospital statements before full independent verification."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "AP regional reporting and official statements gathered for the August 27 roundup."
+    },
+    {
+      "id": 5,
+      "url": "https://www.lloydslistintelligence.com/resources/blog/strait-of-hormuz-brief-19-august-2026",
+      "title": "Lloyd’s List Intelligence: Strait of Hormuz brief",
+      "publisher": "Lloyd’s List Intelligence",
+      "authors": [],
+      "published_at": "2026-08-19",
+      "retrieved_at": "2026-08-31",
+      "source_type": "specialist",
+      "access": "full",
+      "directness": "direct",
+      "independence_group": "lloyds-ais-traffic-data",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "AIS-derived counts are preliminary because dark or delayed vessel tracks can appear later."
+      ],
+      "reliability": {
+        "publisher_history": "medium",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "high",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Lloyd’s List Intelligence AIS and commercial shipping dataset."
+    },
+    {
+      "id": 6,
+      "url": "https://www.congress.gov/crs_external_products/R/PDF/R48887/R48887.1.pdf",
+      "title": "CRS: U.S. Conflict with Iran",
+      "publisher": "Congressional Research Service",
+      "authors": [],
+      "published_at": "2026-03-26",
+      "retrieved_at": "2026-08-31",
+      "source_type": "analysis",
+      "access": "full",
+      "directness": "secondary",
+      "independence_group": "crs-r48887-public-records",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "CRS is a high-transparency public-record synthesis, not primary evidence; it cannot expose classified intelligence and may age quickly."
+      ],
+      "reliability": {
+        "publisher_history": "medium",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "high",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "One CRS synthesis of public official records and stated U.S. objectives."
+    },
+    {
+      "id": 7,
+      "url": "https://www.reuters.com/world/middle-east/iran-stored-highly-enriched-uranium-underground-site-iaea-report-says-2026-02-27",
+      "title": "Reuters: IAEA report on Iranian uranium and access",
+      "publisher": "Reuters",
+      "authors": [
+        {
+          "name": "Francois Murphy",
+          "expertise_evidence": "Reuters author page identifies Vienna and nuclear-watchdog reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/francois-murphy/"
+        }
+      ],
+      "published_at": "2026-02-27",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "near-direct",
+      "independence_group": "iaea-gov2026-8",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Reporting combines direct records with attributed or anonymous-source material; each claim retains attribution."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "high",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Reuters reporting of the IAEA safeguards report; grouped with source 8 because the technical facts originate there."
+    },
+    {
+      "id": 8,
+      "url": "https://www.iaea.org/sites/default/files/gov2026-8.pdf",
+      "title": "IAEA GOV/2026/8 safeguards report",
+      "publisher": "International Atomic Energy Agency",
+      "authors": [],
+      "published_at": "2026-02-27",
+      "retrieved_at": "2026-08-31",
+      "source_type": "primary-record",
+      "access": "full",
+      "directness": "direct",
+      "independence_group": "iaea-gov2026-8",
+      "incentives": [
+        "Treaty-verification institution dependent on state access."
+      ],
+      "limitations": [
+        "Inspectors lacked current access to key sites and material."
+      ],
+      "reliability": {
+        "publisher_history": "medium",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "high",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "The IAEA GOV/2026/8 safeguards report itself."
+    },
+    {
+      "id": 9,
+      "url": "https://www.reuters.com/world/middle-east/us-intelligence-indicates-limited-new-damage-irans-nuclear-program-sources-say-2026-05-04",
+      "title": "Reuters: U.S. intelligence on Iran nuclear damage",
+      "publisher": "Reuters",
+      "authors": [
+        {
+          "name": "Gram Slattery",
+          "expertise_evidence": "Reuters biography identifies White House national-security and foreign-affairs reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/gram-slattery/"
+        },
+        {
+          "name": "Jonathan Landay",
+          "expertise_evidence": "Reuters author page identifies national-security reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/jonathan-landay/"
+        },
+        {
+          "name": "Erin Banco",
+          "expertise_evidence": "Reuters biography identifies national-security and intelligence-community reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/erin-banco/"
+        }
+      ],
+      "published_at": "2026-05-04",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "near-direct",
+      "independence_group": "anonymous-us-nuclear-intelligence",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Load-bearing portions rely on anonymous officials or people briefed on intelligence and deliberations."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "high",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Reuters interviews with sources familiar with U.S. nuclear-intelligence assessments."
+    },
+    {
+      "id": 10,
+      "url": "https://www.congress.gov/crs-product/IF12106",
+      "title": "CRS: Iran and Nuclear Weapons Production",
+      "publisher": "Congressional Research Service",
+      "authors": [],
+      "published_at": "2026-04-09",
+      "retrieved_at": "2026-08-31",
+      "source_type": "analysis",
+      "access": "full",
+      "directness": "secondary",
+      "independence_group": "crs-if12106-public-records",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "CRS is a high-transparency public-record synthesis, not primary evidence; it cannot expose classified intelligence and may age quickly."
+      ],
+      "reliability": {
+        "publisher_history": "medium",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "high",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "One CRS synthesis of the public nuclear-intelligence and safeguards record."
+    },
+    {
+      "id": 11,
+      "url": "https://www.dni.gov/index.php/newsroom/press-releases/press-releases-2026/4142-pr-03-26",
+      "title": "ODNI: 2026 Annual Threat Assessment remarks",
+      "publisher": "Office of the Director of National Intelligence",
+      "authors": [],
+      "published_at": "2026-03-26",
+      "retrieved_at": "2026-08-31",
+      "source_type": "government",
+      "access": "full",
+      "directness": "direct",
+      "independence_group": "odni-official-assessment",
+      "incentives": [
+        "Official U.S. wartime communication."
+      ],
+      "limitations": [
+        "Primary evidence of the government claim, not independent proof of the claim."
+      ],
+      "reliability": {
+        "publisher_history": "unknown",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "low",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Official ODNI presentation of the U.S. intelligence leadership’s public claim."
+    },
+    {
+      "id": 12,
+      "url": "https://www.reuters.com/world/middle-east/trump-approved-iran-operation-after-netanyahu-argued-joint-killing-khamenei-2026-03-23",
+      "title": "Reuters: Decision and Netanyahu lobbying investigation",
+      "publisher": "Reuters",
+      "authors": [
+        {
+          "name": "Erin Banco",
+          "expertise_evidence": "Reuters biography identifies national-security and intelligence-community reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/erin-banco/"
+        },
+        {
+          "name": "Gram Slattery",
+          "expertise_evidence": "Reuters biography identifies White House national-security and foreign-affairs reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/gram-slattery/"
+        },
+        {
+          "name": "Maayan Lubell",
+          "expertise_evidence": "Reuters author page identifies Israel reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/maayan-lubell/"
+        }
+      ],
+      "published_at": "2026-03-23",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "near-direct",
+      "independence_group": "reuters-decision-source-interviews",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Load-bearing portions rely on anonymous officials or people briefed on intelligence and deliberations."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "high",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Reuters interviews with officials and people close to U.S. and Israeli decision-making."
+    },
+    {
+      "id": 13,
+      "url": "https://www.reuters.com/world/middle-east/us-legal-adviser-says-iran-war-justified-by-tehrans-aggression-over-decades-2026-04-24",
+      "title": "Reuters: Legal justification and imminence dispute",
+      "publisher": "Reuters",
+      "authors": [
+        {
+          "name": "Simon Lewis",
+          "expertise_evidence": "Reuters author page identifies diplomacy and national-security reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/simon-lewis/"
+        },
+        {
+          "name": "Patricia Zengerle",
+          "expertise_evidence": "Reuters biography identifies congressional foreign-policy reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/patricia-zengerle/"
+        }
+      ],
+      "published_at": "2026-04-24",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "near-direct",
+      "independence_group": "state-legal-statement-and-expert-response",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Reporting combines direct records with attributed or anonymous-source material; each claim retains attribution."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "high",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "The State Department legal statement plus separately quoted legal experts in one Reuters report."
+    },
+    {
+      "id": 14,
+      "url": "https://www.theguardian.com/us-news/2026/mar/16/epstein-files-trump-iran-war",
+      "title": "Guardian: Epstein attention and Iran war",
+      "publisher": "The Guardian",
+      "authors": [],
+      "published_at": "2026-03-16",
+      "retrieved_at": "2026-08-31",
+      "source_type": "analysis",
+      "access": "full",
+      "directness": "commentary",
+      "independence_group": "guardian-epstein-advocate-interviews",
+      "incentives": [
+        "Center-left editorial context and advocate-heavy framing."
+      ],
+      "limitations": [
+        "Useful for attention effects and reactions, not evidence of hidden presidential motive."
+      ],
+      "reliability": {
+        "publisher_history": "unknown",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "low",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Guardian interviews with Epstein-transparency advocates and legal observers."
+    },
+    {
+      "id": 15,
+      "url": "https://www.imf.org/-/media/files/publications/reo/mcd-cca/2026/english/text.pdf",
+      "title": "IMF: April 2026 Regional Economic Outlook",
+      "publisher": "International Monetary Fund",
+      "authors": [],
+      "published_at": "2026-04-01",
+      "retrieved_at": "2026-08-31",
+      "source_type": "primary-record",
+      "access": "full",
+      "directness": "direct",
+      "independence_group": "imf-economic-model",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Macroeconomic forecasts are model-dependent and revised as conditions change."
+      ],
+      "reliability": {
+        "publisher_history": "medium",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "high",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "The IMF regional macroeconomic model and published outlook."
+    },
+    {
+      "id": 16,
+      "url": "https://www.csis.org/analysis/iran-war-cost-estimate-update-113-billion-day-6-165-billion-day-12",
+      "title": "CSIS: Iran war cost estimate",
+      "publisher": "Center for Strategic and International Studies",
+      "authors": [],
+      "published_at": null,
+      "retrieved_at": "2026-08-31",
+      "source_type": "specialist",
+      "access": "full",
+      "directness": "secondary",
+      "independence_group": "csis-war-cost-model",
+      "incentives": [
+        "Policy-analysis organization operating within a Washington policy ecosystem."
+      ],
+      "limitations": [
+        "Analysis depends on assumptions and secondary reporting; not a neutral public auditor."
+      ],
+      "reliability": {
+        "publisher_history": "medium",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "high",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "CSIS cost model using reported DOD costs, budget documents, and explicit assumptions."
+    },
+    {
+      "id": 17,
+      "url": "https://www.csis.org/analysis/how-tehrans-use-cyber-operations-us-iran-conflict-has-evolved",
+      "title": "CSIS: Evolution of Iranian cyber operations",
+      "publisher": "Center for Strategic and International Studies",
+      "authors": [],
+      "published_at": null,
+      "retrieved_at": "2026-08-31",
+      "source_type": "specialist",
+      "access": "full",
+      "directness": "secondary",
+      "independence_group": "csis-cyber-analysis",
+      "incentives": [
+        "Policy-analysis organization operating within a Washington policy ecosystem."
+      ],
+      "limitations": [
+        "Analysis depends on assumptions and secondary reporting; not a neutral public auditor."
+      ],
+      "reliability": {
+        "publisher_history": "medium",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "CSIS synthesis of attributed cyber incidents and Iranian doctrine."
+    },
+    {
+      "id": 18,
+      "url": "https://www.reuters.com/world/middle-east/us-can-only-confirm-about-third-irans-missile-arsenal-destroyed-sources-say-2026-03-27",
+      "title": "Reuters: U.S. intelligence on Iranian missile losses",
+      "publisher": "Reuters",
+      "authors": [
+        {
+          "name": "Phil Stewart",
+          "expertise_evidence": "Reuters biography identifies extensive national-security and conflict reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/phil-stewart/"
+        },
+        {
+          "name": "Idrees Ali",
+          "expertise_evidence": "Reuters author page identifies Pentagon and national-security reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/idrees-ali/"
+        },
+        {
+          "name": "Jonathan Landay",
+          "expertise_evidence": "Reuters author page identifies national-security reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/jonathan-landay/"
+        },
+        {
+          "name": "Erin Banco",
+          "expertise_evidence": "Reuters biography identifies national-security and intelligence-community reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/erin-banco/"
+        }
+      ],
+      "published_at": "2026-03-27",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "near-direct",
+      "independence_group": "anonymous-us-missile-intelligence",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Load-bearing portions rely on anonymous officials or people briefed on intelligence and deliberations."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "high",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Reuters interviews with sources familiar with U.S. missile-damage intelligence."
+    },
+    {
+      "id": 19,
+      "url": "https://www.reuters.com/world/china/global-markets-global-markets-2026-08-31",
+      "title": "Reuters: Shares skid as oil and yields stay high",
+      "publisher": "Reuters",
+      "authors": [
+        {
+          "name": "Wayne Cole",
+          "expertise_evidence": "Reuters author page identifies global markets reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/wayne-cole/"
+        }
+      ],
+      "published_at": "2026-08-31",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "direct",
+      "independence_group": "market-data-and-breaking-reporting",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Reporting combines direct records with attributed or anonymous-source material; each claim retains attribution."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "high",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Reuters market-price data plus breaking reports of the latest military exchange."
+    },
+    {
+      "id": 20,
+      "url": "https://www.reuters.com/world/middle-east/how-many-people-have-been-killed-us-israel-war-iran-2026-04-07",
+      "title": "Reuters: Documented Iran war death tolls",
+      "publisher": "Reuters",
+      "authors": [],
+      "published_at": "2026-04-07",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "near-direct",
+      "independence_group": "hrana-and-government-casualty-records",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Reporting combines direct records with attributed or anonymous-source material; each claim retains attribution."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Reuters synthesis of HRANA documentation and national authority casualty records."
+    },
+    {
+      "id": 21,
+      "url": "https://www.npr.org/2026/08/31/g-s1-141175/attacks-flare-us-iran",
+      "title": "NPR: U.S.-Iran attacks flare after pause",
+      "publisher": "NPR",
+      "authors": [],
+      "published_at": "2026-08-31",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "near-direct",
+      "independence_group": "npr-official-and-field-reporting",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Immediate battle effects were incompletely independently verified at cutoff."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "NPR reporting drawing on official announcements and regional reporting of the retaliation."
+    },
+    {
+      "id": 22,
+      "url": "https://www.csmonitor.com/USA/Military/2026/0828/iran-war-trump-objectives-six-months",
+      "title": "Christian Science Monitor: U.S. objectives after six months",
+      "publisher": "Christian Science Monitor",
+      "authors": [],
+      "published_at": "2026-08-28",
+      "retrieved_at": "2026-08-31",
+      "source_type": "analysis",
+      "access": "full",
+      "directness": "secondary",
+      "independence_group": "csm-expert-interviews-and-secondary-reporting",
+      "incentives": [
+        "Ordinary publication, access, and framing incentives; no specific institutional conflict was established."
+      ],
+      "limitations": [
+        "Expert interviews and secondary reporting provide strategic context but do not independently audit classified battle-damage claims."
+      ],
+      "reliability": {
+        "publisher_history": "medium",
+        "author_expertise": "unknown",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Christian Science Monitor interviews and secondary synthesis of military and intelligence reporting."
+    },
+    {
+      "id": 23,
+      "url": "https://www.reuters.com/business/energy/six-months-war-how-middle-east-conflict-has-shaped-financial-markets-2026-08-27",
+      "title": "Reuters: Six months of war in financial markets",
+      "publisher": "Reuters",
+      "authors": [
+        {
+          "name": "Karin Strohecker",
+          "expertise_evidence": "Reuters biography identifies global markets and emerging-economy reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/karin-strohecker/"
+        },
+        {
+          "name": "Marc Jones",
+          "expertise_evidence": "Reuters biography identifies economics and financial-markets reporting.",
+          "track_record_evidence": "unknown",
+          "conflicts": "unknown",
+          "expertise_url": "https://www.reuters.com/authors/marc-jones/"
+        }
+      ],
+      "published_at": "2026-08-27",
+      "retrieved_at": "2026-08-31",
+      "source_type": "wire-service",
+      "access": "full",
+      "directness": "direct",
+      "independence_group": "market-data-six-month-series",
+      "incentives": [
+        "No specific conflict beyond ordinary institutional and access incentives was established."
+      ],
+      "limitations": [
+        "Reporting combines direct records with attributed or anonymous-source material; each claim retains attribution."
+      ],
+      "reliability": {
+        "publisher_history": "high",
+        "author_expertise": "high",
+        "author_track_record": "unknown",
+        "transparency": "medium",
+        "notes": "Assessment is specific to this item: directness, sourcing, methods, access, and incentives matter more than publisher reputation. Author track records were not independently audited."
+      },
+      "independence_rationale": "Reuters compilation of market series across oil, equities, bonds, and food prices."
+    }
+  ],
+  "claims": [
+    {
+      "id": "C1",
+      "statement": "The war remained active at the cutoff but had shifted from continuous mass strikes toward blockade, sanctions, Hormuz disruption, proxy activity, cyber operations, and intermittent kinetic exchanges.",
+      "kind": "inference",
+      "status": "probable",
+      "importance": "load-bearing",
+      "confidence": [
+        0.85,
+        0.95
+      ],
+      "source_ids": [
+        1,
+        2,
+        3,
+        5,
+        17
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Multiple independent reporting and specialist paths document the changed operational form and continuing conflict.",
+      "falsifiers": [
+        "A durable ceasefire with normal shipping and ended attacks."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C2",
+      "statement": "U.S. and Israeli forces severely degraded Iran’s conventional navy, air defenses, air force, leadership, and defense-industrial capacity without eliminating its missile and drone capability.",
+      "kind": "fact",
+      "status": "confirmed",
+      "importance": "load-bearing",
+      "confidence": [
+        0.8,
+        0.95
+      ],
+      "source_ids": [
+        1,
+        18,
+        12
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Belligerent percentages are uncertain, but both observed behavior and attributed intelligence support severe degradation with meaningful residual capability.",
+      "falsifiers": [
+        "Independent inventory showing claimed destroyed systems remained operational at scale."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C3",
+      "statement": "The Iranian regime survived leadership decapitation and installed a harder-line successor.",
+      "kind": "fact",
+      "status": "confirmed",
+      "importance": "load-bearing",
+      "confidence": [
+        0.9,
+        0.98
+      ],
+      "source_ids": [
+        2,
+        12
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Independent reporting and observed succession support regime survival; the failed uprising prediction is visible.",
+      "falsifiers": [
+        "Authenticated evidence that effective state authority had collapsed by cutoff."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C4",
+      "statement": "Hormuz was militarily cleared of many mines but remained commercially obstructed, with traffic far below prewar norms.",
+      "kind": "fact",
+      "status": "confirmed",
+      "importance": "load-bearing",
+      "confidence": [
+        0.85,
+        0.97
+      ],
+      "source_ids": [
+        4,
+        5,
+        22
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "AP reporting, specialist AIS data, and independent reporting distinguish lane clearance from commercial safety.",
+      "falsifiers": [
+        "AIS and insurer data showing sustained prewar-normal commercial traffic."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C5",
+      "statement": "The IAEA estimated 440.9 kg of uranium enriched up to 60 percent before the 2025 attacks and could not verify its location afterward.",
+      "kind": "fact",
+      "status": "confirmed",
+      "importance": "load-bearing",
+      "confidence": [
+        0.95,
+        0.99
+      ],
+      "source_ids": [
+        7,
+        8
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "The primary safeguards report and reporting based on it agree; these are one independence group but the primary record is direct.",
+      "falsifiers": [
+        "A corrected IAEA inventory or verified transfer/destruction record."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C6",
+      "statement": "Public U.S. intelligence and IAEA material did not establish a prewar Iranian decision to build a bomb or public evidence of covert fissile-material production.",
+      "kind": "fact",
+      "status": "probable",
+      "importance": "load-bearing",
+      "confidence": [
+        0.75,
+        0.9
+      ],
+      "source_ids": [
+        10
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "CRS synthesizes the public intelligence record and distinguishes fissile production from weaponization; classified evidence remains inaccessible.",
+      "falsifiers": [
+        "Declassified intelligence documenting an authorized active weapons program before the attack."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C7",
+      "statement": "The 2026 campaign added little measurable delay to the estimated nuclear-weapon timeline because it focused heavily on conventional and leadership targets.",
+      "kind": "attributed",
+      "status": "probable",
+      "importance": "load-bearing",
+      "confidence": [
+        0.7,
+        0.88
+      ],
+      "source_ids": [
+        9
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Reuters reported a broad U.S. intelligence consensus while preserving uncertainty and anonymous attribution.",
+      "falsifiers": [
+        "Later declassified assessment showing a materially longer timeline caused by 2026 strikes."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C8",
+      "statement": "Known nuclear infrastructure was badly damaged and the estimated path to a weapon was longer than before the 2025 strikes, but the stockpile and expertise survived or remained unverified.",
+      "kind": "inference",
+      "status": "probable",
+      "importance": "load-bearing",
+      "confidence": [
+        0.75,
+        0.9
+      ],
+      "source_ids": [
+        7,
+        8,
+        9
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Physical damage and intelligence timelines support delay, while missing material prevents a destruction conclusion.",
+      "falsifiers": [
+        "Verified removal or destruction of the enriched stockpile and relevant covert capacity."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C9",
+      "statement": "The opening U.S.-Israeli campaign pursued missile, naval, proxy, leadership, regime-pressure, and nuclear objectives rather than nuclear prevention alone.",
+      "kind": "fact",
+      "status": "confirmed",
+      "importance": "load-bearing",
+      "confidence": [
+        0.9,
+        0.98
+      ],
+      "source_ids": [
+        6,
+        12
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "CRS records the stated multi-goal campaign and Reuters reconstructs leadership targeting and regime-change arguments.",
+      "falsifiers": [
+        "Primary decision records showing every non-nuclear goal was merely incidental."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C10",
+      "statement": "No publicly demonstrated imminent threat clearly supported the preventive-war justification; the administration later argued that establishing imminence was unnecessary.",
+      "kind": "inference",
+      "status": "contested",
+      "importance": "load-bearing",
+      "confidence": [
+        0.7,
+        0.9
+      ],
+      "source_ids": [
+        13
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Reuters presents the official legal theory and the contrary judgment of more than 100 legal experts; legality remains contested.",
+      "falsifiers": [
+        "Public release of specific imminent-attack intelligence that withstands independent review."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C11",
+      "statement": "The war displaced Epstein coverage, but no public evidence at cutoff established burying Epstein as the causal reason for launching it.",
+      "kind": "inference",
+      "status": "probable",
+      "importance": "load-bearing",
+      "confidence": [
+        0.8,
+        0.95
+      ],
+      "source_ids": [
+        12,
+        14
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Attention displacement is directly observed and reported; the documented decision chain points to military and political drivers without proof of an Epstein motive.",
+      "falsifiers": [
+        "Documents or credible firsthand testimony tying the strike order to suppressing Epstein coverage."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C12",
+      "statement": "U.S. forces struck two launchers on Larak Island on August 30, the first known U.S. strike in Iran since late July.",
+      "kind": "attributed",
+      "status": "confirmed",
+      "importance": "load-bearing",
+      "confidence": [
+        0.9,
+        0.98
+      ],
+      "source_ids": [
+        3,
+        21
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "The United States admitted the strike and Iran acknowledged it; the claimed mine-launch preparation was not independently verified.",
+      "falsifiers": [
+        "Credible evidence that no strike occurred or that the location/date was materially wrong."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C13",
+      "statement": "Iran said it retaliated against U.S. positions in Jordan and the UAE, while independent damage verification remained incomplete at cutoff.",
+      "kind": "attributed",
+      "status": "probable",
+      "importance": "supporting",
+      "confidence": [
+        0.65,
+        0.85
+      ],
+      "source_ids": [
+        21
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "NPR reported launches and attacks while preserving attribution and uncertainty about effects.",
+      "falsifiers": [
+        "Authoritative interception and sensor records disproving the launches."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C14",
+      "statement": "The war had killed thousands, displaced millions, and killed 18 U.S. service members by the cutoff, but no precise current aggregate was defensible.",
+      "kind": "fact",
+      "status": "probable",
+      "importance": "load-bearing",
+      "confidence": [
+        0.8,
+        0.95
+      ],
+      "source_ids": [
+        3,
+        20
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Reuters combined rights documentation, official records, and displacement reporting while avoiding a false exact total.",
+      "falsifiers": [
+        "Reconciled named-victim and combatant-status records materially revising the order of magnitude."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C15",
+      "statement": "Hormuz disruption materially raised energy, freight, insurance, inflation, and growth costs, although the global economy avoided the most severe early scenarios.",
+      "kind": "fact",
+      "status": "confirmed",
+      "importance": "load-bearing",
+      "confidence": [
+        0.85,
+        0.96
+      ],
+      "source_ids": [
+        15,
+        19,
+        23,
+        1
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Independent market data and IMF modeling show both the shock and resilience.",
+      "falsifiers": [
+        "Revised data attributing the observed energy and growth moves primarily to unrelated causes."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C16",
+      "statement": "The war consumed large U.S. munitions inventories and imposed substantial direct costs, creating opportunity costs for Europe and the Indo-Pacific.",
+      "kind": "inference",
+      "status": "probable",
+      "importance": "supporting",
+      "confidence": [
+        0.7,
+        0.9
+      ],
+      "source_ids": [
+        1,
+        16
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Reported Pentagon costs and transparent CSIS modeling support scale while exact total cost remains unauditable.",
+      "falsifiers": [
+        "Audited Pentagon records materially below the reported usage and replacement burden."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C17",
+      "statement": "Iran used cyber operations as an asymmetric amplifier for espionage, disruption, targeting support, and information effects.",
+      "kind": "inference",
+      "status": "probable",
+      "importance": "supporting",
+      "confidence": [
+        0.7,
+        0.9
+      ],
+      "source_ids": [
+        17
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "CSIS synthesizes observed incidents and doctrine while noting attribution limits.",
+      "falsifiers": [
+        "Independent attribution showing cited operations were unrelated actors."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C18",
+      "statement": "Iranian proxy networks were degraded but retained meaningful attack capacity.",
+      "kind": "inference",
+      "status": "probable",
+      "importance": "supporting",
+      "confidence": [
+        0.7,
+        0.9
+      ],
+      "source_ids": [
+        1
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Reuters synthesis documents losses and continued attacks; exact command relationships remain opaque.",
+      "falsifiers": [
+        "Verified disarmament and severed operational support across the named groups."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C19",
+      "statement": "No durable settlement or shared end state existed at cutoff despite active mediation.",
+      "kind": "fact",
+      "status": "confirmed",
+      "importance": "load-bearing",
+      "confidence": [
+        0.9,
+        0.98
+      ],
+      "source_ids": [
+        2,
+        4,
+        1
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Independent reporting shows repeated negotiations, temporary arrangements, and unresolved enforcement and political terms.",
+      "falsifiers": [
+        "Signed implemented settlement with observed compliance and normal shipping."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "C20",
+      "statement": "Reduced general-news visibility reflected both a genuine fall in mass-strike tempo and migration into less visible economic, maritime, proxy, and cyber conflict.",
+      "kind": "inference",
+      "status": "probable",
+      "importance": "supporting",
+      "confidence": [
+        0.65,
+        0.85
+      ],
+      "source_ids": [
+        1,
+        3,
+        5,
+        17
+      ],
+      "contradicting_source_ids": [],
+      "rationale": "Strike timing and continuous non-kinetic activity support the mixed explanation; newsroom decision data was not directly available.",
+      "falsifiers": [
+        "News-volume analysis showing coverage did not materially decline or declined for unrelated reasons."
+      ],
+      "last_checked": "2026-08-31T10:49:00Z"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source_id": 1,
+      "excerpt": "Iran's military and economy have suffered severe damage, but Tehran can still launch attacks and keep the Strait of Hormuz closed.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C2"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E2",
+      "source_id": 12,
+      "excerpt": "Mojtaba, considered even more harshly anti-American than his father, has been named the new supreme leader of Iran.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C3"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E3",
+      "source_id": 5,
+      "excerpt": "Preliminary data show 73 transits between 10 and 16 August, down from 91 the previous week.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C4"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E4",
+      "source_id": 7,
+      "excerpt": "The IAEA estimates that Iran had 440.9 kg of uranium enriched to up to 60% before last year’s Israeli-U.S. attacks - enough, if enriched further, for 10 nuclear weapons, according to an IAEA yardstick.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C5"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E5",
+      "source_id": 10,
+      "excerpt": "Neither the U.S. government nor the IAEA have publicly described evidence that Iran is conducting covert fissile material production nuclear activities.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C6"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E6",
+      "source_id": 9,
+      "excerpt": "U.S. intelligence assessments indicate that the time Iran would need to build a nuclear weapon has not changed since last summer",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C7"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E7",
+      "source_id": 6,
+      "excerpt": "U.S. officials have articulated a number of specific military objectives, including destroying Iran’s ballistic missile arsenal and program; destroying Iran’s navy; ending Iran’s support for terrorist groups; and ensuring that Iran does not acquire a nuclear weapon.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C9"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E8",
+      "source_id": 13,
+      "excerpt": "Rubinstein concluded the campaign that began in late February was \"part of an armed conflict with Iran that has been ongoing for years\" and said it was unnecessary to assess whether an Iranian attack on the U.S. or an ally was imminent.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C10"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E9",
+      "source_id": 12,
+      "excerpt": "The possibility of regime change was one of Netanyahu's arguments in the call shortly before Trump gave final orders to attack Iran",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C11"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E10",
+      "source_id": 3,
+      "excerpt": "U.S. forces struck two Iranian launchers on Iran's Larak island on Sunday, a U.S. official said, marking the first known American strikes on Iran since late July.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C12"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E11",
+      "source_id": 3,
+      "excerpt": "U.S.-Israeli strikes on Iran and Israeli attacks on Lebanon have killed thousands and displaced millions. Eighteen U.S. service members have been killed in the conflict.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C14"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E12",
+      "source_id": 1,
+      "excerpt": "The International Monetary Fund has cut its global growth forecast twice since the war began and now expects the world economy to grow by 3.0% this year, compared with its 3.3% forecast in January.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C15"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E13",
+      "source_id": 1,
+      "excerpt": "Iran has not surrendered, shipping through the Strait of Hormuz remains severely disrupted, and there is no clear path to ending the conflict that Trump once predicted would be over in four weeks.",
+      "location": "article or report body",
+      "supports_claim_ids": [
+        "C19"
+      ],
+      "captured_at": "2026-08-31T10:49:00Z"
+    },
+    {
+      "id": "E14",
+      "source_id": 10,
+      "excerpt": "A 2025 public U.S. intelligence assessment stated that “Iran is not building a nuclear weapon” and that the then supreme leader had “not reauthorized the nuclear weapons program he suspended in 2003.”",
+      "location": "Congressional Research Service, Iran and Nuclear Weapons Production",
+      "supports_claim_ids": [
+        "C6"
+      ],
+      "captured_at": "2026-08-31"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "H1",
+      "statement": "The current U.S. strategy is economic coercion and military containment intended to force terms without a ground invasion.",
+      "probability": {
+        "low": 0.72,
+        "central": 0.82,
+        "high": 0.9
+      },
+      "basis_claim_ids": [
+        "C1",
+        "C9",
+        "C16",
+        "C19"
+      ],
+      "alternatives": [
+        "The campaign is primarily preparatory to renewed regime-decapitation strikes.",
+        "Washington lacks a coherent strategy beyond reactive escalation."
+      ],
+      "update_triggers": [
+        "Release of an official end-state strategy.",
+        "Sustained return to mass strikes or introduction of ground forces."
+      ],
+      "rationale": "Observed blockade, sanctions, periodic strikes, and public terms fit coercion better than an invasion or concluded war.",
+      "resolution": {
+        "status": "open",
+        "outcome": null,
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "H2",
+      "statement": "Iran’s strategy is regime survival through asymmetric attrition and Hormuz leverage rather than symmetric military victory.",
+      "probability": {
+        "low": 0.75,
+        "central": 0.85,
+        "high": 0.93
+      },
+      "basis_claim_ids": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C17"
+      ],
+      "alternatives": [
+        "Iran is preparing a conventional counteroffensive.",
+        "Iran is primarily seeking uncontrolled regional escalation."
+      ],
+      "update_triggers": [
+        "Sustained conventional force regeneration and mass operations.",
+        "A settlement abandoning Hormuz and retaliatory leverage without major concessions."
+      ],
+      "rationale": "Iran’s surviving capabilities and target selection impose political and economic cost while avoiding conventional contest.",
+      "resolution": {
+        "status": "open",
+        "outcome": null,
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "H3",
+      "statement": "Nuclear prevention was the sole or dominant operational purpose of the 2026 campaign.",
+      "probability": {
+        "low": 0.08,
+        "central": 0.18,
+        "high": 0.32
+      },
+      "basis_claim_ids": [
+        "C5",
+        "C6",
+        "C7",
+        "C8",
+        "C9"
+      ],
+      "alternatives": [
+        "Nuclear risk was one genuine goal within a broader military and political campaign.",
+        "Leadership and regional-order goals dominated while nuclear language supplied public justification."
+      ],
+      "update_triggers": [
+        "Primary decision records showing leadership and regime goals were incidental.",
+        "Proof that the uranium stockpile was the campaign’s principal operational target."
+      ],
+      "rationale": "A real proliferation risk existed, but target selection, stated objectives, and limited additional nuclear delay weigh strongly against a nuclear-only account.",
+      "resolution": {
+        "status": "open",
+        "outcome": null,
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "H4",
+      "statement": "The best explanation is a multi-goal attempt to reorder Iran’s military and political position, with nuclear risk both genuine and politically useful.",
+      "probability": {
+        "low": 0.7,
+        "central": 0.82,
+        "high": 0.91
+      },
+      "basis_claim_ids": [
+        "C5",
+        "C7",
+        "C8",
+        "C9",
+        "C10"
+      ],
+      "alternatives": [
+        "A narrowly nuclear campaign expanded only after Iranian retaliation.",
+        "Personal retaliation or Israeli pressure was the decisive driver."
+      ],
+      "update_triggers": [
+        "Declassified planning documents narrowing the approved mission.",
+        "Evidence that non-nuclear targets were improvised rather than planned."
+      ],
+      "rationale": "The documented objectives and decision chain support multiple overlapping motives without requiring one secret master motive.",
+      "resolution": {
+        "status": "open",
+        "outcome": null,
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "H5",
+      "statement": "Suppressing Epstein coverage was a causal reason for launching the war.",
+      "probability": {
+        "low": 0.02,
+        "central": 0.07,
+        "high": 0.16
+      },
+      "basis_claim_ids": [
+        "C11"
+      ],
+      "alternatives": [
+        "The war displaced coverage as a politically convenient side effect.",
+        "The timing was unrelated to the strike decision."
+      ],
+      "update_triggers": [
+        "Documents or firsthand testimony linking Epstein coverage to the strike order.",
+        "Decision records conclusively excluding domestic-news considerations."
+      ],
+      "rationale": "Distraction occurred, but no documentary or testimonial evidence tied it to the launch decision; a developed military decision chain is independently documented.",
+      "resolution": {
+        "status": "open",
+        "outcome": null,
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "H6",
+      "statement": "The next exchange will remain bounded rather than returning immediately to February-scale bombing.",
+      "probability": {
+        "low": 0.52,
+        "central": 0.65,
+        "high": 0.77
+      },
+      "basis_claim_ids": [
+        "C1",
+        "C12",
+        "C13",
+        "C19"
+      ],
+      "alternatives": [
+        "A mass-casualty strike triggers a major U.S. campaign.",
+        "Israel independently resumes broad strikes."
+      ],
+      "update_triggers": [
+        "Large U.S. or Gulf civilian casualties.",
+        "Renewed mining or a tanker disaster.",
+        "Israeli strike on suspected uranium movement."
+      ],
+      "rationale": "All principal governments retain incentives to cap escalation, but recent retaliation and poor enforcement make the range wide.",
+      "resolution": {
+        "status": "open",
+        "outcome": null,
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "H7",
+      "statement": "The most likely medium-term outcome is a partial negotiated arrangement that manages Hormuz and attacks without resolving the nuclear or regional conflict.",
+      "probability": {
+        "low": 0.38,
+        "central": 0.52,
+        "high": 0.66
+      },
+      "basis_claim_ids": [
+        "C4",
+        "C19"
+      ],
+      "alternatives": [
+        "Prolonged managed conflict through the U.S. midterms.",
+        "A larger escalation displaces diplomacy.",
+        "Rapid regime collapse."
+      ],
+      "update_triggers": [
+        "Implemented shipping corridor with verified compliance.",
+        "Collapse of Oman/Qatar mediation.",
+        "Major casualty event."
+      ],
+      "rationale": "Repeated mediation and mutual cost favor a limited bargain, while incompatible end states make comprehensive peace unlikely.",
+      "resolution": {
+        "status": "open",
+        "outcome": null,
+        "resolved_at": null
+      }
+    }
+  ],
+  "coverage_gaps": [
+    "No current independent inspection of Iran’s enriched-uranium stockpile.",
+    "No complete reconciled casualty ledger across Iran, Lebanon, Gulf states, Israel, and shipping.",
+    "No audited total U.S. war-cost or munitions-replacement record.",
+    "Private deliberations and motives remain partly dependent on anonymous sources.",
+    "Immediate damage from the August 30–31 retaliation remained incompletely verified at cutoff.",
+    "Author track records were not independently audited beyond visible publisher biographies and established beats."
+  ],
+  "review": {
+    "deterministic_checks": [
+      "report-local grounded-citations strict verification at 45 percent",
+      "report-local ledger and assessment integrity",
+      "independence-aware confidence guardrails",
+      "reportctl validation",
+      "12 repository unit tests",
+      "generated index and orphan check",
+      "sensitive-content scan"
+    ],
+    "independent_review": "blocked",
+    "notes": "DeepSeek V4 Pro completed an initial adversarial review and found four system blockers. The Iran verdict itself was judged substantively supported. All identified blockers were remediated and verified deterministically, but materially narrower re-review and advisor calls exhausted provider workflow budgets; no independent pass is claimed.",
+    "exact_revision": "staged diff against f2b571a3a4b0e208a78b4dc96ccd73806ce0e8c4",
+    "route": "wandb/deepseek-ai/DeepSeek-V4-Pro-0813, max reasoning",
+    "findings_disposition": [
+      "Added independence-aware confirmation and confidence-width rules; corrected claim source sets.",
+      "Added lineage, cutoff ordering, reviewed-state, and hypothesis-resolution contracts.",
+      "Replaced fabricated timestamp precision with verified publication dates or null and date-only retrieval records.",
+      "Included tables in citation coverage and removed unverified markers from coverage credit.",
+      "Added evidence-to-claim source membership, author evidence URLs, orphan detection, and sensitive-content scanning."
+    ],
+    "rereview_required": true
+  }
+}
