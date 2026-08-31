@@ -197,8 +197,7 @@ def owning_checkout(
         if resolved.parts[-3:] != ("skills", "deep-research", "SKILL.md"):
             raise BootstrapError(f"installed skill has unexpected provenance: {skill} -> {resolved}")
         checkout = resolved.parents[2]
-        if not (checkout / "tools" / "install-skill.py").is_file():
-            raise BootstrapError(f"installed release lacks its installer: {checkout}")
+
         if run("git", "status", "--porcelain", cwd=checkout):
             raise BootstrapError(f"installed release checkout is dirty: {checkout}")
         tag = run("git", "describe", "--tags", "--exact-match", "HEAD", cwd=checkout)
@@ -258,7 +257,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             tag = run("git", "describe", "--tags", "--exact-match", "HEAD", cwd=checkout)
 
-    command = [sys.executable, str(checkout / "tools" / "install-skill.py"), args.action]
+    installer = Path(__file__).resolve().with_name("install-skill.py")
+    command = [
+        sys.executable,
+        str(installer),
+        args.action,
+        "--source",
+        str(checkout / "skills" / "deep-research"),
+    ]
     for consumer in consumers:
         command.extend(["--consumer", consumer])
     command.extend(["--scope", args.scope, "--home", str(home)])

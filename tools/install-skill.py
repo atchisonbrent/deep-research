@@ -26,10 +26,10 @@ class InstallError(RuntimeError):
     pass
 
 
-def exact_release_tag() -> str | None:
+def exact_release_tag(checkout: Path = ROOT) -> str | None:
     result = subprocess.run(
         ["git", "describe", "--tags", "--exact-match", "HEAD"],
-        cwd=ROOT,
+        cwd=checkout,
         text=True,
         capture_output=True,
         check=False,
@@ -38,6 +38,15 @@ def exact_release_tag() -> str | None:
     if result.returncode or not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
         return None
     return tag
+
+
+def configure_source(value: Path | None) -> Path:
+    source = (value or SOURCE).expanduser().resolve()
+    if source.name != "deep-research" or source.parent.name != "skills":
+        raise InstallError(f"source must be a skills/deep-research directory: {source}")
+    if not (source / "SKILL.md").is_file() or (source / "SKILL.md").is_symlink():
+        raise InstallError(f"source has no regular SKILL.md: {source}")
+    return source
 
 
 def target_for(consumer: str, *, scope: str, home: Path, project: Path | None) -> Path:
@@ -210,6 +219,7 @@ def parse_consumers(values: list[str]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    global SOURCE
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("install", "check", "uninstall"))
     parser.add_argument("--consumer", action="append", required=True, help="claude, codex, opencode, hermes, or all; repeatable/comma-separated")
@@ -217,9 +227,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--home", type=Path, default=Path.home(), help="override user home for testing/bootstrap")
     parser.add_argument("--project", type=Path, help="project root for project scope")
     parser.add_argument("--allow-unreleased", action="store_true", help="allow installation from an untagged development checkout")
+    parser.add_argument("--source", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
-    if args.action == "install" and not args.allow_unreleased and exact_release_tag() is None:
+    SOURCE = configure_source(args.source)
+    source_checkout = SOURCE.parents[1]
+
+    if args.action == "install" and not args.allow_unreleased and exact_release_tag(source_checkout) is None:
         raise InstallError(
             "refusing installation from an unreleased checkout; use tools/install-latest.py or pass --allow-unreleased for development"
         )
