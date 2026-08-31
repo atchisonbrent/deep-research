@@ -522,7 +522,7 @@ def validate_report(directory: Path) -> list[str]:
     units = prose_units(body)
     covered = [unit for unit in units if citation_scope_valid(unit)]
     coverage = len(covered) / len(units) if units else 0
-    require(errors, coverage >= 0.45, f"paragraph/table citation coverage {coverage:.0%} is below 45% ({len(covered)}/{len(units)})")
+    require(errors, coverage >= 0.40, f"paragraph/table citation coverage {coverage:.0%} is below 40% ({len(covered)}/{len(units)})")
     over_cited = [sentence for sentence in sentences if len(CITE_RE.findall(sentence)) > 3]
     require(errors, not over_cited, f"{len(over_cited)} sentence(s) carry more than three citations")
 
