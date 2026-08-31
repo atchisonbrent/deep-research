@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import subprocess
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,10 +20,27 @@ SPEC.loader.exec_module(install_skill)
 
 
 class InstallSkillTests(unittest.TestCase):
+    def release_source(self, root: Path, tag: str, content: str) -> Path:
+        checkout = root / tag
+        source = checkout / "skills" / "deep-research"
+        source.mkdir(parents=True)
+        (source / "SKILL.md").write_text(content, encoding="utf-8")
+        tools = checkout / "tools"
+        tools.mkdir()
+        assert install_skill.__file__ is not None
+        shutil.copy2(Path(install_skill.__file__), tools / "install-skill.py")
+        subprocess.run(["git", "init", "-q"], cwd=checkout, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=checkout, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=checkout, check=True)
+        subprocess.run(["git", "add", "."], cwd=checkout, check=True)
+        subprocess.run(["git", "commit", "-qm", f"release {tag}"], cwd=checkout, check=True)
+        subprocess.run(["git", "tag", "-a", tag, "-m", tag], cwd=checkout, check=True)
+        return source
+
     def test_user_install_check_and_uninstall_all_consumers(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary)
-            args = ["--consumer", "all", "--home", str(home)]
+            args = ["--consumer", "all", "--home", str(home), "--allow-unreleased"]
             self.assertEqual(0, install_skill.main(["install", *args]))
             self.assertEqual(0, install_skill.main(["check", *args]))
             for consumer in install_skill.CONSUMERS:
@@ -38,7 +57,7 @@ class InstallSkillTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary)
             consumers = "claude,codex,opencode"
-            args = ["--consumer", consumers, "--scope", "project", "--project", str(project)]
+            args = ["--consumer", consumers, "--scope", "project", "--project", str(project), "--allow-unreleased"]
             self.assertEqual(0, install_skill.main(["install", *args]))
             self.assertTrue((project / ".claude/skills/deep-research/SKILL.md").is_symlink())
             self.assertTrue((project / ".agents/skills/deep-research/SKILL.md").is_symlink())
@@ -53,6 +72,13 @@ class InstallSkillTests(unittest.TestCase):
             with self.assertRaises(install_skill.InstallError):
                 install_skill.install_target(target)
             self.assertEqual("unmanaged\n", (target / "SKILL.md").read_text(encoding="utf-8"))
+
+    def test_install_accepts_empty_target_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "deep-research"
+            target.mkdir()
+            install_skill.install_target(target)
+            self.assertTrue((target / "SKILL.md").is_symlink())
 
     def test_check_detects_misdirected_link(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -75,6 +101,26 @@ class InstallSkillTests(unittest.TestCase):
                     home=Path(temporary),
                     project=Path(temporary),
                 )
+
+    def test_install_from_unreleased_checkout_is_rejected_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.object(install_skill, "exact_release_tag", return_value=None):
+                with self.assertRaises(install_skill.InstallError):
+                    install_skill.main(["install", "--consumer", "claude", "--home", temporary])
+
+    def test_install_upgrades_links_between_managed_releases(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = self.release_source(root, "v1.0.0", "first\n")
+            second = self.release_source(root, "v1.1.0", "second\n")
+            target = root / "home" / ".claude" / "skills" / "deep-research"
+            with mock.patch.object(install_skill, "SOURCE", first):
+                install_skill.install_target(target)
+            self.assertEqual("first\n", (target / "SKILL.md").read_text())
+            with mock.patch.object(install_skill, "SOURCE", second):
+                install_skill.install_target(target)
+            self.assertEqual("second\n", (target / "SKILL.md").read_text())
+            self.assertEqual(second.resolve(), install_skill.managed_source_root(target))
 
 
 if __name__ == "__main__":

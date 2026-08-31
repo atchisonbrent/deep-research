@@ -20,11 +20,13 @@ The deterministic tooling is Python-standard-library-only. An AI agent is requir
 
 The reusable cross-agent skill is public at [`skills/deep-research/`](skills/deep-research/). It defines the research workflow and mode routing; the framework CLI enforces the durable report contract.
 
-The same Agent Skills package works with **Hermes Agent, Claude Code, Codex, and OpenCode**. See [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md), or install all user-level adapters from a stable clone:
+The same Agent Skills package works with **Hermes Agent, Claude Code, Codex, and OpenCode**. See [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md). From any clone, install all user-level adapters from the **latest published release**:
 
 ```bash
-python3 tools/install-skill.py install --consumer all
+python3 tools/install-latest.py
 ```
+
+The bootstrapper asks GitHub for the latest published SemVer release, verifies the remote tag's commit, checks that exact tag out under `~/.local/share/deep-research/releases/`, and links consumers to that versioned release checkout. It never silently installs an arbitrary `main` revision.
 
 **Releases:** [latest](https://github.com/atchisonbrent/deep-research/releases/latest). See [`RELEASING.md`](RELEASING.md) for the eager release contract and [`CHANGELOG.md`](CHANGELOG.md) for version history.
 

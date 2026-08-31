@@ -8,37 +8,55 @@ Use a skill for a focused procedural capability made of instructions, references
 
 This project currently needs the first thing. Adding four plugin wrappers would create four release surfaces without adding research capability.
 
-## User-wide installation
+## User-wide installation from the latest release
 
-From a stable clone of this repository:
-
-```bash
-python3 tools/install-skill.py install --consumer claude
-python3 tools/install-skill.py install --consumer codex
-python3 tools/install-skill.py install --consumer opencode
-python3 tools/install-skill.py install --consumer hermes
-```
-
-Or install all four:
+From any clone of this repository, install all consumers from the latest **published GitHub Release**:
 
 ```bash
-python3 tools/install-skill.py install --consumer all
+python3 tools/install-latest.py
 ```
+
+Or select consumers:
+
+```bash
+python3 tools/install-latest.py --consumer claude
+python3 tools/install-latest.py --consumer codex --consumer opencode
+```
+
+The bootstrapper resolves GitHub's latest published release, verifies the tag against the remote commit, clones that exact tag into a versioned stable directory under `~/.local/share/deep-research/releases/<tag>/`, and invokes the release's own installer. Updating repeats the command: a new release gets a new checkout, consumer links move atomically, and the previous release remains available.
+
+Roll back explicitly to any still-published release:
+
+```bash
+python3 tools/install-latest.py --tag v0.1.2 --consumer all
+```
+
+Cached checkouts are rechecked for a clean working tree, exact tag, expected origin, and agreement with the remote tag's commit before reuse. `check` and `uninstall` instead resolve the release that owns the installed links and work offline; they do not silently switch to whatever release became latest afterward.
+
+Install and rollback require network access even when a same-named checkout is cached, because the bootstrapper re-verifies the tag against the remote commit. Override the versioned checkout root with `--install-root /path` when the XDG/default location is unsuitable.
+
+`tools/install-skill.py` is the lower-level installer for an already selected Git checkout. It refuses to install from an untagged development revision by default. Maintainers testing unpublished changes must opt in explicitly with `--allow-unreleased`. GitHub-generated source archives do not contain `.git` metadata, so use `install-latest.py` or a tagged Git checkout rather than a release tarball for managed link installation.
 
 OpenCode also scans Claude and Codex skill roots. When all adapters are installed it may discover the same skill through multiple roots; every entry resolves to identical canonical files, and the native OpenCode adapter provides the explicit OpenCode location. This avoids divergent copies even on OpenCode versions whose duplicate-source precedence has changed.
 
-The installer creates regular consumer directories containing leaf symlinks to this checkout. Keep the checkout in a stable location. It refuses to replace unmanaged or drifted content.
+The installer creates regular consumer directories containing leaf symlinks to the selected release checkout. It refuses to replace unmanaged or drifted content.
+
+If consumers intentionally point at different versions, operate on them separately (`check --consumer claude`, then `check --consumer codex`, and likewise for uninstall) or run one explicit `install-latest.py --tag <tag> --consumer all` to reconcile them to a single release.
+
+### Refusal recovery
+
+Refusal is deliberate: the installer will not erase a modified release checkout, broken link, or unmanaged target. Inspect the reported path first. Preserve any local work outside the managed release cache. For a damaged cached checkout, remove or move only the named `~/.local/share/deep-research/releases/<tag>/` directory and rerun `install-latest.py`; for broken or unmanaged consumer links, move the reported `deep-research` consumer directory aside, verify its contents, then reinstall. Do not recursively delete an agent's entire `skills/` directory.
 
 Verify without mutation:
 
 ```bash
-python3 tools/install-skill.py check --consumer all
+python3 tools/install-latest.py check --consumer all
 ```
 
 Remove only managed installations:
 
 ```bash
-python3 tools/install-skill.py uninstall --consumer claude,codex,opencode
+python3 tools/install-latest.py uninstall --consumer claude,codex,opencode
 ```
 
 ## Project-scoped installation
@@ -46,7 +64,7 @@ python3 tools/install-skill.py uninstall --consumer claude,codex,opencode
 To expose the skill only inside one repository:
 
 ```bash
-python3 tools/install-skill.py install \
+python3 tools/install-latest.py \
   --scope project \
   --project /path/to/project \
   --consumer claude,codex,opencode
@@ -58,7 +76,7 @@ This creates:
 - `.agents/skills/deep-research/`
 - `.opencode/skills/deep-research/`
 
-Project links point back to this framework checkout, so they are suited to a stable local setup. For a team repository, pin `deep-research` as a submodule and run the installer from that pinned checkout.
+Project links point back to the selected release checkout. For a team repository, pin `deep-research` as a submodule at an exact release tag and run that release's lower-level installer.
 
 ## Invocation
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -22,6 +24,20 @@ CONSUMERS = {
 
 class InstallError(RuntimeError):
     pass
+
+
+def exact_release_tag() -> str | None:
+    result = subprocess.run(
+        ["git", "describe", "--tags", "--exact-match", "HEAD"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    tag = result.stdout.strip()
+    if result.returncode or not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+        return None
+    return tag
 
 
 def target_for(consumer: str, *, scope: str, home: Path, project: Path | None) -> Path:
@@ -77,13 +93,64 @@ def check_target(target: Path) -> list[str]:
     return errors
 
 
+def managed_source_root(target: Path) -> Path | None:
+    if not target.is_dir() or target.is_symlink():
+        return None
+    files = sorted(path for path in target.rglob("*") if path.is_file() or path.is_symlink())
+    if not files:
+        return None
+    roots: set[Path] = set()
+    for path in files:
+        if not path.is_symlink():
+            return None
+        relative = path.relative_to(target)
+        try:
+            resolved = path.resolve(strict=True)
+        except FileNotFoundError:
+            return None
+        parts = resolved.parts
+        marker = ("skills", "deep-research")
+        positions = [index for index in range(len(parts) - 1) if tuple(parts[index:index + 2]) == marker]
+        if not positions:
+            return None
+        index = positions[-1]
+        source_root = Path(*parts[: index + 2])
+        if resolved.relative_to(source_root) != relative:
+            return None
+        roots.add(source_root)
+    if len(roots) != 1:
+        return None
+    source_root = roots.pop()
+    checkout = source_root.parents[1]
+    result = subprocess.run(
+        ["git", "describe", "--tags", "--exact-match", "HEAD"],
+        cwd=checkout,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode or not re.fullmatch(r"v\d+\.\d+\.\d+", result.stdout.strip()):
+        return None
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=checkout,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if status.returncode or status.stdout.strip():
+        return None
+    return source_root
+
+
 def refuse_unmanaged(target: Path) -> None:
     if not target.exists() and not target.is_symlink():
         return
     if not target.is_dir() or target.is_symlink():
         raise InstallError(f"refusing to replace unmanaged path: {target}")
-    errors = check_target(target)
-    if errors:
+    if not any(target.iterdir()):
+        return
+    if managed_source_root(target) is None:
         raise InstallError(f"refusing to replace unmanaged or drifted skill: {target}")
 
 
@@ -149,14 +216,33 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scope", choices=("user", "project"), default="user")
     parser.add_argument("--home", type=Path, default=Path.home(), help="override user home for testing/bootstrap")
     parser.add_argument("--project", type=Path, help="project root for project scope")
+    parser.add_argument("--allow-unreleased", action="store_true", help="allow installation from an untagged development checkout")
     args = parser.parse_args(argv)
+
+    if args.action == "install" and not args.allow_unreleased and exact_release_tag() is None:
+        raise InstallError(
+            "refusing installation from an unreleased checkout; use tools/install-latest.py or pass --allow-unreleased for development"
+        )
 
     consumers = parse_consumers(args.consumer)
     home = args.home.expanduser().resolve()
     project = args.project.expanduser().resolve() if args.project else None
+    targets = {
+        consumer: target_for(consumer, scope=args.scope, home=home, project=project)
+        for consumer in consumers
+    }
+    if args.action == "install":
+        for target in targets.values():
+            refuse_unmanaged(target)
+    elif args.action == "uninstall":
+        for target in targets.values():
+            if target.exists() or target.is_symlink():
+                errors = check_target(target)
+                if errors:
+                    raise InstallError(f"refusing to remove unmanaged or drifted skill: {target}")
     failures: list[str] = []
     for consumer in consumers:
-        target = target_for(consumer, scope=args.scope, home=home, project=project)
+        target = targets[consumer]
         if args.action == "install":
             install_target(target)
             print(f"installed {consumer}: {target}")

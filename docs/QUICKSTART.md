@@ -16,6 +16,8 @@ To inspect a complete real-world artifact before creating your own, open [`examp
 
 For Claude Code, Codex, OpenCode, and Hermes installation, see [`INTEGRATIONS.md`](INTEGRATIONS.md).
 
+The supported default is `python3 tools/install-latest.py`, which installs from GitHub's latest published release into a versioned local checkout. Direct `install-skill.py install` calls are for exact tagged checkouts; unreleased development installs require `--allow-unreleased`.
+
 ### Private report vault with public machinery
 
 Keep actual reports in a separate private repository and pin this framework:
