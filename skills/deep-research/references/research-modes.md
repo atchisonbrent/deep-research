@@ -70,9 +70,20 @@ Do not count papers as independent when they reuse the same dataset, cohort, lab
 
 ## Comparative analysis
 
-Freeze the comparison class and criteria before retrieval. Prefer common-condition evidence; normalize units, versions, dates, workloads, price basis, and exclusions.
+Freeze the comparison class and criteria before retrieval. Separate hard eligibility gates from weighted preferences and define the minimum acceptable outcome for each hard constraint. Prefer common-condition evidence; normalize units, versions, dates, workloads, transaction stage, price basis, and exclusions.
 
-Output: criteria matrix, evidence per criterion, tradeoffs, who should choose each option, sensitivity to changed priorities, unresolved gaps.
+Write the eligibility gate, criteria matrix, and normalized cost table in `report.md`. Map their factual premises and conclusions into schema-defined claims, evidence, and coverage gaps; do not invent assessment fields. If no option passes every hard gate, output **no viable candidate within the comparison class**.
+
+For live or transactional options:
+
+1. Load `product-buying-research` when available; it owns exact-option, seller/provider, availability, checkout, and delivered-cost collection. Deep research imports that evidence and owns durable gating and synthesis.
+2. Verify exact identity when it affects eligibility or value. Exclude unresolved identity that could fail a hard gate; otherwise rank only the lowest verified capability and preserve the contradiction.
+3. Test simultaneous fit. Capacity, compatibility, required quality, operating limits, and logistics must hold for the complete workload at the same time.
+4. Normalize decision-grade cost: required protection or service tier, taxes, fees, delivery or pickup, essential extras, refundability, included usage, and foreseeable operating cost. Headline prices at different transaction stages are not comparable.
+5. Record observation time in the applicable source retrieval and `evidence.captured_at` records. Write the refresh trigger on the refresh-at-decision checklist in `report.md`; do not invent an assessment field. Stop before personal data, payment, terms acceptance, or transaction commit.
+6. When a hard requirement changes, rerun the eligibility gate, workload fit, normalized totals, and ranking. If fresh post-cutoff evidence is required, create a dated successor and connect `lineage.supersedes` and `lineage.superseded_by` rather than revising the old cutoff.
+
+Output: eligibility gate, criteria matrix, normalized cost table, evidence per criterion, tradeoffs, who should choose each option, sensitivity to changed priorities, unresolved identity or fit gaps, and a refresh-at-decision checklist.
 
 A winner without a declared user, workload, budget, or objective is usually marketing wearing a table.
 

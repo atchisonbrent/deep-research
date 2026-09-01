@@ -39,6 +39,9 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
             "scan-sensitive",
             "expected visibility",
             "publishing report contents publicly requires explicit user intent",
+            "never rank a pre-tax teaser against an all-in protected total",
+            "exclude an option when unresolved identity",
+            "never silently advance the old cutoff",
             "$framework/methodology.md",
             "$framework/schema.md",
         )
@@ -60,8 +63,20 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
             "scientific synthesis",
             "product landscape",
             "due diligence",
+            "test simultaneous fit",
+            "normalize decision-grade cost",
+            "rerun the eligibility gate, workload fit, normalized totals, and ranking",
         ):
             self.assertIn(phrase, modes)
+
+        self.assertIn("## comparative analysis", modes)
+        self.assertIn("## product landscape", modes)
+        comparative = modes.split("## comparative analysis", 1)[1].split("## product landscape", 1)[0]
+        self.assertIn("product-buying-research", comparative)
+        self.assertIn("no viable candidate within the comparison class", comparative)
+        self.assertIn("lineage.supersedes", comparative)
+        self.assertIn("lineage.superseded_by", comparative)
+        self.assertNotIn("mark the old verdict superseded", SKILL.read_text(encoding="utf-8").lower())
         for phrase in (
             "not a points system",
             "particular claim",

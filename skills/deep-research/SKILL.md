@@ -88,9 +88,13 @@ Read `$FRAMEWORK/METHODOLOGY.md`, `$FRAMEWORK/SCHEMA.md`, `reports/index.md`, th
 - which inputs are volatile enough to require refresh at decision time;
 - whether this is a new report or dated update.
 
+For comparative analysis with volatile availability, pricing, or exact options, also define hard constraints, soft preferences, minimum acceptable outcomes, and the common transaction basis. Put the comparison contract and criteria matrix in `report.md`; represent their factual premises and decision-relevant conclusions with the schema-defined claims, evidence, and coverage gaps in `assessment.json`. Do not invent assessment fields.
+
 Create the report skeleton with the pinned framework’s `reportctl.py --root "$REPO" init`, including `--mode` and `--domain`. Never silently revise an old report’s cutoff or forecast to incorporate later knowledge.
 
 Completion: `assessment.json` contains real questions, mode, domain, scope, and volatility boundaries, and the report directory exists.
+
+For those volatile comparative analyses, treat the contract as a gate rather than decorative context. Before ranking anything, remove candidates that fail a hard requirement. Evaluate the complete simultaneous workload rather than isolated specifications: capacity, compatibility, operating constraints, and required quality must hold at the same time. A nominal capacity or benchmark does not prove useful workload fit. If nothing passes, report **no viable candidate within the comparison class** instead of manufacturing a winner. Represent that overall conclusion as an inference over one evidenced gate-failure claim per candidate, not as a magically confirmed universal negative.
 
 ### 2. Decompose conclusions before searching
 
@@ -104,6 +108,8 @@ Turn slogans and broad narratives into atomic candidate claims. Separate:
 - unknowns.
 
 For causal, intentional, strategic, or forecast questions, write the leading hypothesis, strongest credible alternative, mixed explanation where appropriate, and insufficient-evidence possibility before deciding which is true. For descriptive landscapes and comparisons, use an explicit criteria matrix instead; do not manufacture dramatic hypotheses because the schema permits them.
+
+For transactional comparisons, load `product-buying-research` when available; it owns exact option, seller/provider, availability, checkout, and delivered-cost collection. Import that bounded transaction evidence into the durable report while deep research owns the eligibility gate and synthesis. Normalize dates or quantity, required protection or service tier, taxes, delivery or pickup, mandatory fees, essential extras, refundability, included usage, and foreseeable operating costs. A listed price can be registered with its scope, but it cannot support a load-bearing ranking until the common transaction basis is established. Never rank a pre-tax teaser against an all-in protected total. Stop before personal data, payment, terms acceptance, or any transaction commit.
 
 Completion: initial claim IDs plus either hypothesis IDs or a criteria matrix exist in `assessment.json` before synthesis.
 
@@ -121,6 +127,8 @@ Retrieve in parallel across evidence classes:
 Register each URL with the pinned framework’s `add-source` command immediately after retrieval. Never hand-number IDs or delete an uncited but genuinely consulted source merely to make the bibliography look tidy; the ledger and assessment may retain consulted sources while `render-sources` publishes only cited IDs. Then read `$FRAMEWORK/SCHEMA.md` and use `write_file` for a complete initial `assessment.json` or `patch` for a targeted update; the ledger owns citation identity and verified quotes, while `assessment.json` owns access, independence, source/author assessment, claims, evidence, hypotheses, gaps, and review state. Record `access: snippet` there when only a search description was read; a snippet cannot support a body-level claim. Never invent field names—the pinned schema and validator own the shape.
 
 A source failure is a coverage gap, not negative evidence. Retry load-bearing failures through a different route before concluding.
+
+For comparative options, treat identity as a load-bearing claim when the exact model, trim, generation, configuration, seller, provider, or service tier affects eligibility or value. Compare the listing or catalog label with authoritative specifications and inspectable identifiers, media, order/configuration details, or primary records. A platform category, badge, title, or seller assertion is not authentication by itself. Exclude an option when unresolved identity could make it fail a hard requirement; otherwise rank it only under the lowest verified capability and preserve the contradiction as a coverage gap.
 
 Completion: each decision question has mode-appropriate primary evidence, an independent analysis or reporting path, and one sought contradiction or alternative interpretation—or a documented gap explaining why not.
 
@@ -182,6 +190,8 @@ Write the verdict first, then distinguish:
 
 Separate specifications from useful performance, demos from shipped availability, benchmark wins from workload fit, market narratives from measured economics, correlation from causation, and announced plans from demonstrated execution. For motive questions, distinguish demonstrated decision chains from incentives and speculation.
 
+If the user changes a hard requirement, intended use, workload, budget basis, or mandatory feature after synthesis, discard the stale draft verdict and rerun the eligibility gate, workload fit, normalized totals, and ranking. If no fresh evidence is needed, update the draft without changing its frozen cutoff. If evidence after the cutoff is required, create a dated successor report—even when the prior artifact is still draft—and connect `lineage.supersedes` and `lineage.superseded_by`; never silently advance the old cutoff or set status to `superseded` without a valid successor.
+
 Assign hypothesis probability ranges only after the claim ledger exists. Widen ranges when private intent, anonymous sourcing, dependence, access restrictions, or missing primary evidence dominate. Include update triggers that would move the range.
 
 Completion: a reader can identify what happened, what is inferred, what remains unknown, and what evidence would change the judgment.
@@ -198,6 +208,8 @@ Never fix low citation coverage by copying all paragraph citations onto every se
 4. mark genuinely unsourced load-bearing judgment `[unverified]` and either research it or make the uncertainty explicit.
 
 Generate the Sources block mechanically with `reportctl.py render-sources`; never hand-number or hand-retype URLs.
+
+Cite every data-bearing comparison-matrix and normalized-cost-table row at the narrowest honest scope. The validator treats table rows as independent citation units; a citation on the paragraph above does not cover them.
 
 Completion: citation IDs are stable, scoped to the claims they support, semantically accurate, readable, and generated source URLs match the ledger.
 
@@ -249,11 +261,18 @@ Completion: local and remote branches match, CI is green, and the report is brow
 - **Probability precision can hide ignorance.** Use ranges and explain what widens them.
 - **Citation coverage is not citation quality.** Never propagate a citation set across a paragraph to satisfy a counter.
 - **Claims have different half-lives.** Preserve cutoff, label volatile prices, roadmaps, benchmarks, and market inputs, and create dated updates.
+- **A requirement change invalidates more than one sentence.** Re-run eligibility, workload fit, totals, and ranking instead of appending a caveat to a stale verdict; preserve cutoff and lineage rules.
+- **Advertised capacity is not workload fit.** Test all simultaneous people, cargo, compatibility, operating, and comfort constraints that matter to the decision.
+- **Headline prices are not comparable totals.** Normalize transaction stage, required tiers, fees, taxes, logistics, refundability, and essential extras.
+- **Catalog identity can be wrong.** Verify consequential model, trim, provider, and configuration claims against primary identifiers or preserve the contradiction as unresolved.
 - **Private Git is not a secret dump.** Store short excerpts and public artifacts, not credentials, leaked secrets, or full copyrighted articles.
 
 ## Verification
 
 - [ ] UTC cutoff, research mode, domain, questions, intended use, and volatile inputs are explicit
+- [ ] Volatile comparative work records hard constraints, soft preferences, simultaneous workload, and minimum acceptable outcomes in `report.md`
+- [ ] Transactional comparisons use `product-buying-research` when available and share one decision-grade cost basis
+- [ ] Consequential comparative-option identities are verified, conservatively bounded, or excluded
 - [ ] Prior report and methodology were read
 - [ ] Conclusions decomposed into atomic claims before synthesis
 - [ ] Mode-appropriate primary, independent, specialist, stakeholder, and contradictory paths sought
@@ -262,6 +281,7 @@ Completion: local and remote branches match, CI is green, and the report is brow
 - [ ] Every load-bearing factual claim has a short verified excerpt or artifact coordinate
 - [ ] Observed, reported, assessed, forecast, and unknown are distinguishable
 - [ ] Forecast/causal hypotheses use ranges, alternatives, basis claims, falsifiers, and update triggers; descriptive research uses a criteria matrix
+- [ ] Material requirement changes triggered a full re-gate and a cutoff/lineage-correct draft or successor
 - [ ] Citations were registered at retrieval and attached once per honest clause, sentence, paragraph, or table-row scope
 - [ ] `render-sources` generated a Sources block matching the report’s cited subset
 - [ ] Pinned `reportctl.py validate`, index check, sensitive scan, framework unit tests, and `git diff --check` pass
