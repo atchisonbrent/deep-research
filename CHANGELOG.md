@@ -6,6 +6,12 @@ All notable changes to this project are documented here. This project follows [S
 
 
 
+
+## [0.1.5] - 2026-09-01
+
+### Features
+
+- harden volatile comparative research
 ## [0.1.4] - 2026-08-31
 
 ### Bug Fixes
@@ -41,3 +47,4 @@ All notable changes to this project are documented here. This project follows [S
 [0.1.2]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.2
 [0.1.3]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.3
 [0.1.4]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.4
+[0.1.5]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.5
