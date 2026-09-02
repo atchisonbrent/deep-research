@@ -100,7 +100,7 @@ The validator can establish facts about the **research artifact**, such as:
 - a claim marked `confirmed` has either full direct evidence or two declared independence groups;
 - a single indirect evidence group cannot receive an implausibly narrow or greater-than-95% confidence range;
 - citations resolve and cover the prose/table units they are attached to;
-- every excerpt corresponds to a ledger quotation, and the only command that writes ledger quotations refuses text absent from the supplied source file (correspondence is proven; file provenance is an analyst attestation kept inspectable under `evidence/`);
+- under `validate --strict`, every excerpt corresponds to a ledger quotation; the two commands that write ledger quotations (`add-evidence`, `add-quote`) both refuse text absent from the caller-supplied source file (correspondence is checked; file provenance is an analyst attestation kept inspectable under `evidence/`). Default `validate` reports a missing correspondence as a warning;
 - timestamps do not postdate the report cutoff, and claim status agrees with its confidence interval;
 - forecast reports contain hypotheses, ranges, alternatives, and update triggers;
 - source, report-lineage, review-state, and sensitive-content rules are satisfied.

@@ -1,0 +1,4 @@
+# Reviewed literal suppressions for `reportctl.py scan-sensitive`.
+# One exact string per line; `#` starts a comment. Add an entry only for a
+# documented example value a report legitimately quotes (a public sample JWT,
+# a vendor's placeholder key shape). Every entry is visible in Git history.

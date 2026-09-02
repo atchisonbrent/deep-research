@@ -693,6 +693,11 @@ class ReportCtlTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             target = self.copy_fixture(temporary)
             reportctl.add_source(target, "https://example.org/second", "Second source", "2026-08-31")
+            assessment = json.loads((target / "assessment.json").read_text())
+            second = dict(assessment["sources"][0])
+            second.update({"id": 2, "url": "https://example.org/second", "title": "Second source"})
+            assessment["sources"].append(second)
+            (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
             fetched = Path(temporary) / "fetched.txt"
             fetched.write_text("Second source text.\n")
             with self.assertRaisesRegex(ValueError, "does not list source 2"):
@@ -862,6 +867,117 @@ class ReportCtlTests(unittest.TestCase):
         self.assertIn("coverage_gaps[0] matrix-cell gaps must name candidate and criterion", errors)
         self.assertTrue(any("coverage_gaps[1].kind must be one of" in e for e in errors))
         self.assertIn("coverage_gaps[2].claim_ids must reference known claims", errors)
+
+    def test_supersede_rejects_predecessor_outside_reports_and_leaves_it_untouched(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "reports").mkdir()
+            outside = root / "examples" / "minimal-report"
+            shutil.copytree(ROOT / "tests" / "fixtures" / "minimal-report", outside)
+            before = {p.name: p.read_bytes() for p in outside.iterdir() if p.is_file()}
+            with mock.patch.object(reportctl, "ROOT", root), mock.patch.object(reportctl, "REPORTS", root / "reports"):
+                with self.assertRaisesRegex(ValueError, "reports/ directory"):
+                    reportctl.supersede_report(outside, "later", "Later", "2026-09-15T00:00:00Z")
+            self.assertEqual(before, {p.name: p.read_bytes() for p in outside.iterdir() if p.is_file()})
+            self.assertEqual([], list((root / "reports").iterdir()))
+
+    def test_supersede_rolls_back_predecessor_and_successor_on_write_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, predecessor = self.make_vault_with_fixture(temporary)
+            before = {p.name: p.read_bytes() for p in predecessor.iterdir() if p.is_file()}
+            with mock.patch.object(reportctl, "ROOT", root), mock.patch.object(reportctl, "REPORTS", root / "reports"):
+                with mock.patch.object(reportctl, "write_text_atomic", side_effect=OSError("disk full")):
+                    with self.assertRaisesRegex(OSError, "disk full"):
+                        reportctl.supersede_report(predecessor, "later", "Later", "2026-09-15T00:00:00Z")
+            self.assertEqual(before, {p.name: p.read_bytes() for p in predecessor.iterdir() if p.is_file()})
+            self.assertFalse((root / "reports" / "2026" / "09" / "later").exists())
+
+    def test_supersede_handles_quoted_frontmatter_status(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, predecessor = self.make_vault_with_fixture(temporary)
+            report = (predecessor / "report.md").read_text().replace("status: draft", 'status: "draft"')
+            (predecessor / "report.md").write_text(report)
+            with mock.patch.object(reportctl, "ROOT", root), mock.patch.object(reportctl, "REPORTS", root / "reports"):
+                reportctl.supersede_report(predecessor, "later", "Later", "2026-09-15T00:00:00Z")
+                self.assertIn("status: superseded", (predecessor / "report.md").read_text())
+                self.assertEqual([], reportctl.validate_report(predecessor))
+
+    def test_partially_edited_placeholder_is_still_rejected(self) -> None:
+        def mutate(assessment, report):
+            assessment["report"]["summary"] = f"Completed later {reportctl.PLACEHOLDER_MARKER}"
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertIn("report.summary still contains the init placeholder", errors)
+
+    def test_null_source_ids_is_an_error_not_a_traceback(self) -> None:
+        def mutate(assessment, report):
+            assessment["claims"][0]["source_ids"] = None
+            assessment["claims"][0]["contradicting_source_ids"] = None
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertIn("claims[0].source_ids must be a list", errors)
+
+    def test_json_mode_envelopes_missing_required_argument(self) -> None:
+        result = subprocess.run([sys.executable, str(ROOT / "tools" / "reportctl.py"), "--json", "init", "--slug", "x"], text=True, capture_output=True)
+        self.assertEqual(2, result.returncode)
+        self.assertEqual("", result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(any("required" in e for e in payload["errors"]), payload)
+
+    def test_date_only_lineage_cutoffs_compare_by_calendar_day(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, predecessor = self.make_vault_with_fixture(temporary)
+            assessment = json.loads((predecessor / "assessment.json").read_text())
+            assessment["report"]["cutoff"] = "2026-08-31"
+            (predecessor / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
+            report = (predecessor / "report.md").read_text().replace("cutoff: 2026-08-31T10:49:00Z", "cutoff: 2026-08-31").replace("**Cutoff:** 2026-08-31T10:49:00Z", "**Cutoff:** 2026-08-31")
+            (predecessor / "report.md").write_text(report)
+            with mock.patch.object(reportctl, "ROOT", root), mock.patch.object(reportctl, "REPORTS", root / "reports"):
+                # Same UTC day is not "later" when either side is date-only.
+                with self.assertRaisesRegex(ValueError, "later than the predecessor"):
+                    reportctl.supersede_report(predecessor, "same-day", "Same day", "2026-08-31T23:00:00Z")
+                successor = reportctl.supersede_report(predecessor, "next-day", "Next day", "2026-09-01T00:00:00Z")
+                self.assertEqual([], reportctl.validate_report(predecessor))
+
+    def test_add_evidence_requires_assessment_source_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            reportctl.add_source(target, "https://example.org/ledger-only", "Ledger only", "2026-08-31")
+            assessment = json.loads((target / "assessment.json").read_text())
+            assessment["claims"][0]["source_ids"] = [1, 2]
+            (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
+            before = (target / "assessment.json").read_bytes()
+            fetched = Path(temporary) / "fetched.txt"
+            fetched.write_text("Ledger only text.\n")
+            with self.assertRaisesRegex(ValueError, "no assessment.json sources entry"):
+                reportctl.add_evidence(target, 2, "Ledger only text.", fetched, ["C1"], "body", "2026-08-31T10:00:00Z")
+            self.assertEqual(before, (target / "assessment.json").read_bytes())
+
+    def test_low_entropy_dummies_are_skipped_for_every_credential_family(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "notes.md").write_text(
+                "AIza" + "a" * 35 + "\n"
+                "AKIA" + "A" * 16 + "\n"
+                "ghp_" + "x" * 30 + "\n"
+                "xoxb-1234567890-" + "b" * 24 + "\n"
+                "sk-" + "0123456789abcdef" * 3 + "\n"
+                "sk_live_" + "z" * 24 + "\n"
+            )
+            with mock.patch.object(reportctl, "ROOT", root):
+                self.assertEqual([], reportctl.sensitive_content_errors())
+
+    def test_generated_titles_are_always_quoted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            reports = Path(temporary) / "reports"
+            with mock.patch.object(reportctl, "REPORTS", reports):
+                directory = reportctl.init_report(Namespace(slug="num", title="2026-08-31", cutoff="2026-08-31T10:49:00Z", mode="general", domain="testing"))
+            self.assertIn('title: "2026-08-31"', (directory / "report.md").read_text())
 
 
 if __name__ == "__main__":

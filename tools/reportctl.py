@@ -204,6 +204,18 @@ def not_after(earlier: Any, later: Any) -> bool:
     return earlier_dt <= later_dt
 
 
+def strictly_before(earlier: Any, later: Any) -> bool:
+    """True when ``earlier`` is strictly before ``later`` under the same
+    instant/calendar-day semantics as :func:`not_after`."""
+    earlier_dt = parse_temporal(earlier)
+    later_dt = parse_temporal(later)
+    if earlier_dt is None or later_dt is None:
+        return True
+    if is_date_only(earlier) or is_date_only(later):
+        return earlier_dt.astimezone(timezone.utc).date() < later_dt.astimezone(timezone.utc).date()
+    return earlier_dt < later_dt
+
+
 def approx_ge(value: float, threshold: float) -> bool:
     """Float-tolerant ``value >= threshold`` for probability arithmetic."""
     return value + 1e-9 >= threshold
@@ -259,10 +271,12 @@ def frontmatter_scalar(raw: str) -> str:
 
 
 def frontmatter_encode(value: str) -> str:
-    """Encode a scalar for generated frontmatter; quote when YAML would misread it."""
-    if value != value.strip() or not value or any(ch in value for ch in ':#{}[],&*!|>\'"%@`') or value.lower() in {"yes", "no", "true", "false", "null", "~"}:
-        return json.dumps(value, ensure_ascii=False)
-    return value
+    """Encode a free-text scalar for generated frontmatter.
+
+    Titles are always JSON-quoted so no YAML consumer can coerce them to a
+    number, date, or boolean; :func:`frontmatter_scalar` decodes the result.
+    """
+    return json.dumps(value, ensure_ascii=False)
 
 
 def report_body_and_sources(markdown: str) -> tuple[str, dict[int, str]]:
@@ -481,9 +495,9 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
     created_dt = parse_temporal(report.get("created"))
     updated_dt = parse_temporal(report.get("updated"))
     if cutoff_dt and created_dt:
-        require(errors, cutoff_dt <= created_dt, "report.cutoff must not be after report.created")
+        require(errors, not_after(report.get("cutoff"), report.get("created")), "report.cutoff must not be after report.created")
     if created_dt and updated_dt:
-        require(errors, created_dt <= updated_dt, "report.created must not be after report.updated")
+        require(errors, not_after(report.get("created"), report.get("updated")), "report.created must not be after report.updated")
     lineage = report.get("lineage")
     require(errors, isinstance(lineage, dict), "report.lineage must be an object")
     if isinstance(lineage, dict):
@@ -503,21 +517,22 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
             require(errors, target_assessment.is_file(), f"report.lineage.{key} target lacks assessment.json: {value}")
             if target_assessment.is_file() and cutoff_dt:
                 try:
-                    target_cutoff = parse_temporal(load_json(target_assessment)["report"]["cutoff"])
+                    target_cutoff_raw = load_json(target_assessment)["report"]["cutoff"]
+                    target_cutoff = parse_temporal(target_cutoff_raw)
                 except (ValueError, KeyError, TypeError):
-                    target_cutoff = None
+                    target_cutoff_raw, target_cutoff = None, None
                 require(errors, target_cutoff is not None, f"report.lineage.{key} target has invalid cutoff")
                 if target_cutoff and key == "supersedes":
-                    require(errors, target_cutoff < cutoff_dt, "a superseded report must have an earlier cutoff")
+                    require(errors, strictly_before(target_cutoff_raw, report.get("cutoff")), "a superseded report must have an earlier cutoff")
                 if target_cutoff and key == "superseded_by":
-                    require(errors, target_cutoff > cutoff_dt, "a successor report must have a later cutoff")
+                    require(errors, strictly_before(report.get("cutoff"), target_cutoff_raw), "a successor report must have a later cutoff")
     questions = report.get("questions")
     require(errors, isinstance(questions, list) and bool(questions) and all(text(q) for q in questions), "report.questions must be a non-empty text list")
     if text(report.get("slug")):
         require(errors, directory.name == report["slug"], "report.slug must match the directory name")
-    require(errors, not str(report.get("summary", "")).startswith(PLACEHOLDER_PREFIX), "report.summary still contains the init placeholder")
+    require(errors, PLACEHOLDER_MARKER not in str(report.get("summary", "")), "report.summary still contains the init placeholder")
     if isinstance(questions, list):
-        require(errors, not any(str(q).startswith(PLACEHOLDER_PREFIX) for q in questions), "report.questions still contain the init placeholder")
+        require(errors, not any(PLACEHOLDER_MARKER in str(q) for q in questions), "report.questions still contain the init placeholder")
 
     ledger_sources = ledger.get("sources")
     require(errors, ledger.get("version") == 1, "sources-ledger.json version must be 1")
@@ -632,6 +647,8 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         require(errors, valid_range(claim.get("confidence")), f"{where}.confidence must be [low, high] within 0..1")
         for key in ("source_ids", "contradicting_source_ids", "falsifiers"):
             require(errors, isinstance(claim.get(key), list), f"{where}.{key} must be a list")
+            if not isinstance(claim.get(key), list):
+                claim[key] = []
         require(errors, text(claim.get("rationale")), f"{where}.rationale must be non-empty")
         require(errors, valid_datetime(claim.get("last_checked")), f"{where}.last_checked must be ISO-8601")
         if cutoff_dt:
@@ -701,6 +718,7 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         supports = item.get("supports_claim_ids")
         require(errors, isinstance(supports, list) and bool(supports), f"{where}.supports_claim_ids must be non-empty")
         if isinstance(supports, list):
+            supports = [c for c in supports if isinstance(c, str)]
             evidence_source = source_by_id.get(item.get("source_id")) if isinstance(item.get("source_id"), int) else None
             for claim_id in supports:
                 require(errors, claim_id in claim_by_id, f"{where} references unknown claim {claim_id}")
@@ -750,7 +768,7 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         basis = hypothesis.get("basis_claim_ids")
         require(errors, isinstance(basis, list) and bool(basis), f"{where}.basis_claim_ids must be non-empty")
         if isinstance(basis, list):
-            for claim_id in basis:
+            for claim_id in [c for c in basis if isinstance(c, str)]:
                 require(errors, claim_id in claim_by_id, f"{where} references unknown claim {claim_id}")
         alternatives = hypothesis.get("alternatives")
         require(errors, isinstance(alternatives, list), f"{where}.alternatives must be a list")
@@ -784,9 +802,9 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
             require(errors, text(gap.get("description")), f"{where}.description must be non-empty")
             if gap.get("kind") == "matrix-cell":
                 require(errors, text(gap.get("candidate")) and text(gap.get("criterion")), f"{where} matrix-cell gaps must name candidate and criterion")
-            for key in ("claim_ids",):
-                if key in gap:
-                    require(errors, isinstance(gap[key], list) and all(c in claim_by_id for c in gap[key]), f"{where}.{key} must reference known claims")
+            if "claim_ids" in gap:
+                claim_refs = gap["claim_ids"]
+                require(errors, isinstance(claim_refs, list) and all(isinstance(c, str) and c in claim_by_id for c in claim_refs), f"{where}.claim_ids must reference known claims")
     review = assessment.get("review")
     require(errors, isinstance(review, dict), "review must be an object")
     if isinstance(review, dict):
@@ -828,7 +846,7 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         fields = {key: frontmatter_scalar(raw) for key, raw in re.findall(r"^([a-z_]+):\s*(.+)$", frontmatter_match.group(1), re.MULTILINE)}
         for key in ("title", "slug", "mode", "domain", "cutoff", "status"):
             require(errors, fields.get(key) == str(report.get(key, "")), f"report.md frontmatter {key} differs from assessment.json")
-    require(errors, PLACEHOLDER_PREFIX not in body, "report.md still contains init placeholder text")
+    require(errors, PLACEHOLDER_MARKER not in body, "report.md still contains init placeholder text")
     return errors
 
 
@@ -891,9 +909,11 @@ def record_quote(ledger: Any, source_id: int, quote: str) -> bool:
     """Append ``quote`` to the ledger source in memory; return True when it was new."""
     source = ledger_source(ledger, source_id)
     quotes = source.get("quotes")
-    if not isinstance(quotes, list):
+    if quotes is None:
         quotes = []
         source["quotes"] = quotes
+    if not isinstance(quotes, list) or not all(isinstance(item, dict) for item in quotes):
+        raise ValueError(f"source {source_id} has a malformed quotes list; repair sources-ledger.json first")
     if any(isinstance(item, dict) and normalize_whitespace(str(item.get("text", ""))) == normalize_whitespace(quote) for item in quotes):
         return False
     quotes.append({"text": quote, "added": datetime.now(timezone.utc).date().isoformat()})
@@ -959,7 +979,12 @@ def add_evidence(
     ledger = load_json(ledger_path)
     if not isinstance(assessment, dict):
         raise ValueError("assessment.json must be an object")
-    ledger_source(ledger, source_id)
+    ledger_entry = ledger_source(ledger, source_id)
+    if not isinstance(ledger_entry.get("quotes", []), list) or not all(isinstance(q, dict) for q in ledger_entry.get("quotes") or []):
+        raise ValueError(f"source {source_id} has a malformed quotes list; repair sources-ledger.json first")
+    assessment_sources = assessment.get("sources")
+    if not isinstance(assessment_sources, list) or not any(isinstance(src, dict) and src.get("id") == source_id for src in assessment_sources):
+        raise ValueError(f"source {source_id} is registered in the ledger but has no assessment.json sources entry; add its assessment first")
     report = assessment.get("report") if isinstance(assessment.get("report"), dict) else {}
     if report.get("cutoff") and not not_after(captured_at, report.get("cutoff")):
         raise ValueError("--captured-at is after the report cutoff")
@@ -983,9 +1008,18 @@ def add_evidence(
         assessment["evidence"] = evidence
     if not isinstance(evidence, list) or not all(isinstance(item, dict) for item in evidence):
         raise ValueError("assessment.json evidence must be a list of objects")
+    seen_evidence_ids: set[str] = set()
     for item in evidence:
+        item_id = item.get("id")
+        if not (isinstance(item_id, str) and ID_RE.fullmatch(item_id)):
+            raise ValueError(f"an existing evidence record has an invalid id {item_id!r}; repair assessment.json first")
+        if item_id in seen_evidence_ids:
+            raise ValueError(f"duplicate evidence id {item_id}; repair assessment.json first")
+        seen_evidence_ids.add(item_id)
         if not isinstance(item.get("supports_claim_ids", []), list):
-            raise ValueError(f"evidence {item.get('id')!r} has a malformed supports_claim_ids")
+            raise ValueError(f"evidence {item_id} has a malformed supports_claim_ids")
+        if not text(item.get("location")) or not valid_datetime(item.get("captured_at")):
+            raise ValueError(f"evidence {item_id} has a malformed location or captured_at; repair assessment.json first")
 
     existing = next(
         (
@@ -1107,29 +1141,56 @@ def supersede_report(predecessor: Path, slug: str, title: str, cutoff: str, mode
     The predecessor keeps its cutoff and content; only ``status`` and
     ``lineage.superseded_by`` change. The successor starts as a scaffold with
     the predecessor's questions copied so the update can state what changed.
+
+    Every input is checked before the first write. If any later write fails,
+    the predecessor's two files are restored byte-for-byte and the partially
+    created successor directory is removed.
     """
+    import shutil
+
     predecessor = predecessor.resolve()
+    try:
+        pred_rel = predecessor.relative_to(REPORTS.resolve())
+    except ValueError:
+        raise ValueError("predecessor must live under the vault's reports/ directory") from None
+    pred_rel = Path("reports") / pred_rel
     pred_assessment_path = predecessor / "assessment.json"
-    pred_assessment = load_json(pred_assessment_path)
+    pred_markdown_path = predecessor / "report.md"
+    pred_assessment_bytes = pred_assessment_path.read_bytes()
+    pred_markdown_bytes = pred_markdown_path.read_bytes()
+    pred_assessment = json.loads(pred_assessment_bytes.decode("utf-8"))
+    pred_markdown = pred_markdown_bytes.decode("utf-8")
     pred_report = pred_assessment.get("report") if isinstance(pred_assessment, dict) else None
     if not isinstance(pred_report, dict) or not isinstance(pred_report.get("lineage"), dict):
         raise ValueError("predecessor assessment.json must contain report.lineage; repair it before superseding")
     if pred_report["lineage"].get("superseded_by"):
         raise ValueError(f"predecessor is already superseded by {pred_report['lineage']['superseded_by']}")
-    pred_markdown_path = predecessor / "report.md"
-    pred_markdown = pred_markdown_path.read_text(encoding="utf-8")
-    if not re.search(r"(?m)^status:\s*\"?(?:draft|reviewed)\"?\s*$", pred_markdown):
-        raise ValueError("predecessor report.md frontmatter has no status: draft|reviewed line to retire")
-    pred_cutoff = parse_temporal(pred_report.get("cutoff"))
-    new_cutoff = parse_temporal(cutoff)
-    if pred_cutoff is None or new_cutoff is None:
+    if not SLUG_RE.fullmatch(slug):
+        raise ValueError("--slug must be lowercase kebab-case")
+    if parse_temporal(pred_report.get("cutoff")) is None or parse_temporal(cutoff) is None:
         raise ValueError("both predecessor and successor cutoffs must be valid ISO-8601")
-    if new_cutoff <= pred_cutoff:
+    if not strictly_before(pred_report.get("cutoff"), cutoff):
         raise ValueError("successor cutoff must be later than the predecessor cutoff")
-    try:
-        pred_rel = predecessor.relative_to(ROOT.resolve())
-    except ValueError:
-        raise ValueError("predecessor must live under the vault root") from None
+    frontmatter_match = re.match(r"^---\n(.*?)\n---\n", pred_markdown, re.DOTALL)
+    if frontmatter_match is None:
+        raise ValueError("predecessor report.md must start with frontmatter")
+    status_line = re.compile(r"(?m)^status:[ \t]*(.+?)[ \t]*$")
+    status_match = status_line.search(frontmatter_match.group(1))
+    if status_match is None or frontmatter_scalar(status_match.group(1)) not in {"draft", "reviewed"}:
+        raise ValueError("predecessor report.md frontmatter has no status: draft|reviewed line to retire")
+    new_cutoff_dt = parse_temporal(cutoff)
+    assert new_cutoff_dt is not None
+    successor = REPORTS / f"{new_cutoff_dt.year:04d}" / f"{new_cutoff_dt.month:02d}" / slug
+    if successor.exists():
+        raise ValueError(f"report already exists: {successor}")
+    succ_rel = Path("reports") / successor.resolve().relative_to(REPORTS.resolve())
+
+    new_frontmatter = frontmatter_match.group(1)[: status_match.start()] + "status: superseded" + frontmatter_match.group(1)[status_match.end() :]
+    new_markdown = "---\n" + new_frontmatter + "\n---\n" + pred_markdown[frontmatter_match.end() :]
+    pred_assessment["report"]["status"] = "superseded"
+    pred_assessment["report"]["lineage"]["superseded_by"] = str(succ_rel)
+    pred_assessment["report"]["updated"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
     args = argparse.Namespace(
         slug=slug,
         title=title,
@@ -1137,20 +1198,26 @@ def supersede_report(predecessor: Path, slug: str, title: str, cutoff: str, mode
         mode=mode or pred_report.get("mode", "general"),
         domain=domain or pred_report.get("domain", "general"),
     )
-    successor = init_report(args)
-    succ_assessment_path = successor / "assessment.json"
-    succ_assessment = load_json(succ_assessment_path)
-    succ_assessment["report"]["lineage"]["supersedes"] = str(pred_rel)
-    succ_assessment["report"]["questions"] = list(pred_report.get("questions") or succ_assessment["report"]["questions"])
-    write_json(succ_assessment_path, succ_assessment)
-    succ_rel = successor.resolve().relative_to(ROOT.resolve())
-    pred_assessment["report"]["status"] = "superseded"
-    pred_assessment["report"]["lineage"]["superseded_by"] = str(succ_rel)
-    pred_assessment["report"]["updated"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    write_json(pred_assessment_path, pred_assessment)
-    pred_markdown = re.sub(r"(?m)^status:\s*\"?(?:draft|reviewed)\"?\s*$", "status: superseded", pred_markdown, count=1)
-    write_text_atomic(pred_markdown_path, pred_markdown)
-    return successor
+    created: Path | None = None
+    try:
+        created = init_report(args)
+        succ_assessment_path = created / "assessment.json"
+        succ_assessment = load_json(succ_assessment_path)
+        succ_assessment["report"]["lineage"]["supersedes"] = str(pred_rel)
+        succ_assessment["report"]["questions"] = list(pred_report.get("questions") or succ_assessment["report"]["questions"])
+        write_json(succ_assessment_path, succ_assessment)
+        write_json(pred_assessment_path, pred_assessment)
+        write_text_atomic(pred_markdown_path, new_markdown)
+    except BaseException:
+        # Roll back to the exact prior bytes; a half-linked lineage is worse than no update.
+        try:
+            pred_assessment_path.write_bytes(pred_assessment_bytes)
+            pred_markdown_path.write_bytes(pred_markdown_bytes)
+        finally:
+            if created is not None and created.exists():
+                shutil.rmtree(created, ignore_errors=True)
+        raise
+    return created
 
 
 def resolve_hypothesis(directory: Path, hypothesis_id: str, outcome: str, resolved_at: str, status: str = "resolved") -> None:
@@ -1223,7 +1290,9 @@ def calibration_text(rows: list[dict[str, Any]]) -> str:
 
     scored = [r for r in rows if r["status"] == "resolved" and r.get("outcome_value") in (0, 1) and all(numeric(r.get(k)) for k in ("low", "central", "high"))]
     open_rows = [r for r in rows if r["status"] == "open"]
-    lines = ["# Forecast calibration", "", f"- Hypotheses: {len(rows)}", f"- Open: {len(open_rows)}", f"- Resolved with binary outcome: {len(scored)}"]
+    resolved_rows = [r for r in rows if r["status"] == "resolved"]
+    superseded_rows = [r for r in rows if r["status"] == "superseded"]
+    lines = ["# Forecast calibration", "", f"- Hypotheses: {len(rows)}", f"- Open: {len(open_rows)}", f"- Resolved: {len(resolved_rows)}", f"- Superseded: {len(superseded_rows)}", f"- Resolved with binary outcome (scored): {len(scored)}"]
     if scored:
         brier = sum((float(r["central"]) - r["outcome_value"]) ** 2 for r in scored) / len(scored)
         inside = sum(1 for r in scored if float(r["low"]) <= r["outcome_value"] <= float(r["high"]))
@@ -1343,15 +1412,22 @@ def sensitive_content_errors() -> list[str]:
     return errors
 
 
+KNOWN_SECRET_PREFIX_RE = re.compile(
+    r"^(?:-----BEGIN [A-Z ]+-----\s*|sk-(?:proj-|ant-|live-)?|xox[abprs]-(?:\d+-)?|AIza|AKIA|ASIA|gh[pousr]_|github_pat_|[sr]k_live_)"
+)
+
+
 def low_entropy(candidate: str) -> bool:
-    """True for obvious dummy values: a run of one repeated character or a
-    trivial ascending sequence in the secret-bearing tail."""
-    tail = re.sub(r"^[A-Za-z_-]+[-_]", "", candidate)
+    """True for obvious dummy values: a run of one or two repeated characters,
+    or a trivial ascending sequence, in the secret-bearing part after any
+    known prefix."""
+    tail = KNOWN_SECRET_PREFIX_RE.sub("", candidate).strip()
     if len(tail) < 8:
         return False
     if len(set(tail)) <= 2:
         return True
-    return tail in ("0123456789abcdef" * 8)[: len(tail)] or tail.lower() in ("abcdefghijklmnopqrstuvwxyz" * 4)[: len(tail)]
+    lowered = tail.lower()
+    return lowered in ("0123456789abcdef" * 8)[: len(tail)] or lowered in ("abcdefghijklmnopqrstuvwxyz" * 4)[: len(tail)] or lowered in ("0123456789" * 12)[: len(tail)]
 
 
 def emit(args: argparse.Namespace, ok: bool, payload: dict[str, Any], human: str, *, errors: list[str] | None = None) -> int:
@@ -1502,7 +1578,7 @@ def main() -> int:
         if args.command == "scan-sensitive":
             errors = sensitive_content_errors()
             return emit(args, not errors, {}, "OK: no high-confidence sensitive material found", errors=errors)
-    except (ValueError, OSError, UnicodeError, TypeError, KeyError) as exc:
+    except (ValueError, OSError, UnicodeError, TypeError, KeyError, AttributeError) as exc:
         return emit(args, False, {}, "", errors=[f"{type(exc).__name__}: {exc}"])
     except SystemExit as exc:
         # init_report raises SystemExit with a message for user errors.

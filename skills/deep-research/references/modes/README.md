@@ -6,7 +6,7 @@ One file per research mode. Every file uses the same skeleton so an agent can sw
 2. **Evidence hierarchy** — what counts as primary in this mode, ordered from strongest to weakest.
 3. **Decomposition pattern** — how to split the headline question into atomic claims for this mode.
 4. **Mode gates** — checks that must pass before synthesis; failing a gate changes the verdict, not the wording.
-5. **Output sections** — the `report.md` headings `reportctl.py init --mode` scaffolds; keep them unless a section is genuinely inapplicable, and say so if you drop one.
+5. **Output sections** — the `report.md` headings `reportctl.py init --mode` scaffolds; keep them unless a section is genuinely inapplicable, and say so if you drop one. A trailing parenthetical on a list entry (for example `Verdict (window and rung)`) is guidance about the section's content, not part of the heading; the framework test compares the heading text before the parenthetical.
 6. **Completion criteria** — what must be true before the report leaves draft.
 7. **Pitfalls** — the characteristic ways this mode goes wrong.
 
