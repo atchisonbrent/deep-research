@@ -118,6 +118,25 @@ def write_json(path: Path, payload: Any) -> None:
         raise
 
 
+def write_text_atomic(path: Path, content: str) -> None:
+    import os
+    import tempfile
+
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def load_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -744,11 +763,11 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         require(errors, isinstance(resolution, dict), f"{where}.resolution must be an object")
         if isinstance(resolution, dict):
             require(errors, resolution.get("status") in {"open", "resolved", "superseded"}, f"{where}.resolution.status invalid")
-            if resolution.get("status") == "resolved":
-                require(errors, text(resolution.get("outcome")), f"{where} resolved hypothesis requires an outcome")
-                require(errors, parse_temporal(resolution.get("resolved_at")) is not None, f"{where} resolved hypothesis requires resolved_at")
+            if resolution.get("status") in {"resolved", "superseded"}:
+                require(errors, text(resolution.get("outcome")), f"{where} {resolution.get('status')} hypothesis requires an outcome")
+                require(errors, parse_temporal(resolution.get("resolved_at")) is not None, f"{where} {resolution.get('status')} hypothesis requires resolved_at")
             else:
-                require(errors, resolution.get("resolved_at") is None, f"{where} unresolved hypothesis resolved_at must be null")
+                require(errors, resolution.get("resolved_at") is None, f"{where} open hypothesis resolved_at must be null")
 
     gaps = assessment.get("coverage_gaps")
     require(errors, isinstance(gaps, list), "coverage_gaps must be a list")
@@ -981,10 +1000,20 @@ def add_evidence(
     if existing is not None and not text(existing.get("id")):
         raise ValueError("an existing matching evidence record has no id; repair assessment.json first")
     new_id = None if existing is not None else next_prefixed_id([item.get("id") for item in evidence], "E")
+    if existing is not None and (str(existing.get("location")) != location or str(existing.get("captured_at")) != captured_at):
+        raise ValueError(
+            f"evidence {existing['id']} already records this excerpt with location {existing.get('location')!r} "
+            f"captured at {existing.get('captured_at')}; reuse those values or edit the record deliberately"
+        )
 
     if record_quote(ledger, source_id, quote):
         write_json(ledger_path, ledger)
     if existing is not None:
+        if str(existing.get("location")) != location or str(existing.get("captured_at")) != captured_at:
+            raise ValueError(
+                f"evidence {existing['id']} already records this excerpt with location {existing.get('location')!r} "
+                f"captured at {existing.get('captured_at')}; reuse those values or edit the record deliberately"
+            )
         existing["supports_claim_ids"] = sorted(set(existing.get("supports_claim_ids", [])) | set(claim_ids))
         write_json(assessment_path, assessment)
         return str(existing["id"])
@@ -1082,9 +1111,15 @@ def supersede_report(predecessor: Path, slug: str, title: str, cutoff: str, mode
     predecessor = predecessor.resolve()
     pred_assessment_path = predecessor / "assessment.json"
     pred_assessment = load_json(pred_assessment_path)
-    pred_report = pred_assessment.get("report") or {}
-    if pred_report.get("lineage", {}).get("superseded_by"):
+    pred_report = pred_assessment.get("report") if isinstance(pred_assessment, dict) else None
+    if not isinstance(pred_report, dict) or not isinstance(pred_report.get("lineage"), dict):
+        raise ValueError("predecessor assessment.json must contain report.lineage; repair it before superseding")
+    if pred_report["lineage"].get("superseded_by"):
         raise ValueError(f"predecessor is already superseded by {pred_report['lineage']['superseded_by']}")
+    pred_markdown_path = predecessor / "report.md"
+    pred_markdown = pred_markdown_path.read_text(encoding="utf-8")
+    if not re.search(r"(?m)^status:\s*\"?(?:draft|reviewed)\"?\s*$", pred_markdown):
+        raise ValueError("predecessor report.md frontmatter has no status: draft|reviewed line to retire")
     pred_cutoff = parse_temporal(pred_report.get("cutoff"))
     new_cutoff = parse_temporal(cutoff)
     if pred_cutoff is None or new_cutoff is None:
@@ -1113,15 +1148,19 @@ def supersede_report(predecessor: Path, slug: str, title: str, cutoff: str, mode
     pred_assessment["report"]["lineage"]["superseded_by"] = str(succ_rel)
     pred_assessment["report"]["updated"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     write_json(pred_assessment_path, pred_assessment)
-    pred_markdown_path = predecessor / "report.md"
-    pred_markdown = pred_markdown_path.read_text(encoding="utf-8")
-    pred_markdown = re.sub(r"(?m)^status: draft$|^status: reviewed$", "status: superseded", pred_markdown, count=1)
-    pred_markdown_path.write_text(pred_markdown, encoding="utf-8")
+    pred_markdown = re.sub(r"(?m)^status:\s*\"?(?:draft|reviewed)\"?\s*$", "status: superseded", pred_markdown, count=1)
+    write_text_atomic(pred_markdown_path, pred_markdown)
     return successor
 
 
 def resolve_hypothesis(directory: Path, hypothesis_id: str, outcome: str, resolved_at: str, status: str = "resolved") -> None:
-    """Score a hypothesis after the fact without editing its original range."""
+    """Score a hypothesis after the fact without editing its original range.
+
+    ``resolved`` records an outcome and date. ``superseded`` marks the
+    hypothesis as re-framed by a later report; it records the same
+    ``outcome`` text (use it to name the successor hypothesis) and date so the
+    calibration record shows when and why scoring stopped.
+    """
     if status not in {"resolved", "superseded"}:
         raise ValueError("status must be resolved or superseded")
     if not text(outcome):
@@ -1130,7 +1169,9 @@ def resolve_hypothesis(directory: Path, hypothesis_id: str, outcome: str, resolv
         raise ValueError("--at must be an ISO date or datetime")
     assessment_path = directory / "assessment.json"
     assessment = load_json(assessment_path)
-    hypothesis = next((h for h in assessment.get("hypotheses", []) if isinstance(h, dict) and h.get("id") == hypothesis_id), None)
+    if not isinstance(assessment, dict) or not isinstance(assessment.get("hypotheses"), list):
+        raise ValueError("assessment.json hypotheses must be a list")
+    hypothesis = next((h for h in assessment["hypotheses"] if isinstance(h, dict) and h.get("id") == hypothesis_id), None)
     if hypothesis is None:
         raise ValueError(f"unknown hypothesis id: {hypothesis_id}")
     resolution = hypothesis.get("resolution") or {}
@@ -1177,7 +1218,10 @@ def calibration_rows() -> list[dict[str, Any]]:
 
 
 def calibration_text(rows: list[dict[str, Any]]) -> str:
-    scored = [r for r in rows if r["status"] == "resolved" and r.get("outcome_value") in (0, 1) and isinstance(r.get("central"), (int, float))]
+    def numeric(value: Any) -> bool:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+    scored = [r for r in rows if r["status"] == "resolved" and r.get("outcome_value") in (0, 1) and all(numeric(r.get(k)) for k in ("low", "central", "high"))]
     open_rows = [r for r in rows if r["status"] == "open"]
     lines = ["# Forecast calibration", "", f"- Hypotheses: {len(rows)}", f"- Open: {len(open_rows)}", f"- Resolved with binary outcome: {len(scored)}"]
     if scored:
@@ -1382,7 +1426,25 @@ def main() -> int:
     index = sub.add_parser("index", help="regenerate reports/index.md")
     index.add_argument("--check", action="store_true")
     sub.add_parser("scan-sensitive", help="scan repository text for high-confidence secret material")
-    args = parser.parse_args()
+    argv = sys.argv[1:]
+    if "--json" in argv:
+        # Argparse usage errors would otherwise bypass the JSON envelope and
+        # write usage text to stderr.
+        import contextlib
+        import io
+
+        captured = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(captured):
+                args = parser.parse_args(argv)
+        except SystemExit as exc:
+            if exc.code in (None, 0):
+                raise
+            detail = captured.getvalue().strip().splitlines()
+            print(json.dumps({"ok": False, "command": None, "errors": [detail[-1] if detail else "invalid command line"]}, indent=2))
+            return 2
+    else:
+        args = parser.parse_args(argv)
     ROOT = args.root.resolve()
     REPORTS = ROOT / "reports"
 
@@ -1440,8 +1502,8 @@ def main() -> int:
         if args.command == "scan-sensitive":
             errors = sensitive_content_errors()
             return emit(args, not errors, {}, "OK: no high-confidence sensitive material found", errors=errors)
-    except (ValueError, OSError, UnicodeError) as exc:
-        return emit(args, False, {}, "", errors=[str(exc)])
+    except (ValueError, OSError, UnicodeError, TypeError, KeyError) as exc:
+        return emit(args, False, {}, "", errors=[f"{type(exc).__name__}: {exc}"])
     except SystemExit as exc:
         # init_report raises SystemExit with a message for user errors.
         message = str(exc.code) if exc.code not in (None, 0) else ""

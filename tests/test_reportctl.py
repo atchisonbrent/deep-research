@@ -786,6 +786,46 @@ class ReportCtlTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unknown hypothesis"):
                 reportctl.resolve_hypothesis(target, "H9", "true", "2026-10-02")
 
+    def test_superseded_hypothesis_validates_after_resolve(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            reportctl.resolve_hypothesis(target, "H1", "re-framed as H2 in the October successor", "2026-10-01", status="superseded")
+            assessment = json.loads((target / "assessment.json").read_text())
+            self.assertEqual("superseded", assessment["hypotheses"][0]["resolution"]["status"])
+            self.assertNotIn("outcome_value", assessment["hypotheses"][0]["resolution"])
+            self.assertEqual([], reportctl.validate_report(target))
+
+    def test_add_evidence_refuses_silent_metadata_merge(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            fetched = Path(temporary) / "fetched.txt"
+            fetched.write_text("The event occurred.\n")
+            before = (target / "assessment.json").read_bytes()
+            with self.assertRaisesRegex(ValueError, "already records this excerpt"):
+                reportctl.add_evidence(target, 1, "The event occurred.", fetched, ["C1"], "a different location", "2026-08-31T09:00:00Z")
+            self.assertEqual(before, (target / "assessment.json").read_bytes())
+            # Same metadata merges claim ids without complaint.
+            evidence_id = reportctl.add_evidence(target, 1, "The event occurred.", fetched, ["C1"], "record body", "2026-08-31T10:00:00Z")
+            self.assertEqual("E1", evidence_id)
+
+    def test_supersede_preflights_predecessor_before_creating_successor(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, predecessor = self.make_vault_with_fixture(temporary)
+            assessment = json.loads((predecessor / "assessment.json").read_text())
+            del assessment["report"]["lineage"]
+            (predecessor / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
+            with mock.patch.object(reportctl, "ROOT", root), mock.patch.object(reportctl, "REPORTS", root / "reports"):
+                with self.assertRaisesRegex(ValueError, "report.lineage"):
+                    reportctl.supersede_report(predecessor, "orphan", "Orphan", "2026-09-15T00:00:00Z")
+                self.assertFalse((root / "reports" / "2026" / "09" / "orphan").exists())
+
+    def test_json_mode_envelopes_argparse_errors(self) -> None:
+        result = subprocess.run([sys.executable, str(ROOT / "tools" / "reportctl.py"), "--json", "no-such-command"], text=True, capture_output=True)
+        self.assertEqual(2, result.returncode)
+        self.assertEqual("", result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["ok"])
+
     def test_calibration_scores_resolved_binary_hypotheses(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root, report_dir = self.make_vault_with_fixture(temporary)

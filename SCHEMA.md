@@ -4,7 +4,7 @@
 
 ## Compatibility
 
-`schema_version` describes the **shape** of `assessment.json`. Validity is decided by the pinned framework release: newer releases add rules (temporal coherence, status/confidence guardrails, snippet limits, placeholder rejection) that older reports may fail. Consumers pin an exact framework tag; a report is "valid" relative to that tag. Rule additions that would fail previously valid reports ship as warnings first and become errors at the next minor version, which is recorded in `CHANGELOG.md`.
+`schema_version` describes the **shape** of `assessment.json`. Validity is decided by the pinned framework release: newer releases add rules (temporal coherence, status/confidence guardrails, snippet limits, placeholder rejection) that older reports may fail. Consumers pin an exact framework tag; a report is "valid" relative to that tag. From 0.2.0 onward, rule additions that would fail previously valid reports ship as warnings first and become errors at the next minor version, recorded in `CHANGELOG.md`. The 0.1.x hardening that introduced this policy (temporal coherence, status/confidence guardrails, snippet limits, placeholder rejection) shipped as immediate errors because the only existing consumers were verified against it before release; the unverified-excerpt rule is the first to follow the warnings-first path.
 
 ## Top-level fields
 
@@ -73,7 +73,7 @@ Hypotheses use:
 {"low": 0.35, "central": 0.50, "high": 0.65}
 ```
 
-Each hypothesis must name at least one credible `alternatives` entry; a hypothesis with no alternative is an assertion, not a hypothesis. Each hypothesis also retains a `resolution` object. It begins as `open`; a later update may mark it `resolved` with an outcome and date or `superseded` by a better-framed hypothesis. This preserves misses and creates an actual calibration record instead of a museum of unscored forecasts.
+Each hypothesis must name at least one credible `alternatives` entry; a hypothesis with no alternative is an assertion, not a hypothesis. Each hypothesis also retains a `resolution` object. It begins as `open`; a later update may mark it `resolved` with an outcome and date, or `superseded` with the same fields, where `outcome` names the better-framed successor hypothesis and `resolved_at` records when scoring stopped. This preserves misses and creates an actual calibration record instead of a museum of unscored forecasts.
 
 All values are between 0 and 1 and ordered. Ranges communicate epistemic uncertainty; they are not mechanically calculated source-vote totals.
 
