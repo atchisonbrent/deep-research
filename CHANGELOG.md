@@ -7,6 +7,12 @@ All notable changes to this project are documented here. This project follows [S
 
 
 
+
+## [0.1.6] - 2026-09-02
+
+### Features
+
+- enforce symmetric comparison criteria
 ## [0.1.5] - 2026-09-01
 
 ### Features
@@ -48,3 +54,4 @@ All notable changes to this project are documented here. This project follows [S
 [0.1.3]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.3
 [0.1.4]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.4
 [0.1.5]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.5
+[0.1.6]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.6
