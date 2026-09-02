@@ -10,7 +10,7 @@
 - `claims`: atomic factual, inferential, forecast, or unknown propositions.
 - `evidence`: short excerpts or artifact coordinates tied to claims.
 - `hypotheses`: competing explanations with probability ranges and update triggers.
-- `coverage_gaps`: known missing evidence or access limitations.
+- `coverage_gaps`: known missing evidence or access limitations, as free text or structured objects (see below).
 - `review`: deterministic and independent review state.
 
 ## Controlled values
@@ -120,6 +120,22 @@ A load-bearing `fact` or `attributed` claim cannot rest only on `snippet`-access
 ```
 
 Every `assessment.json` source must match one ledger ID, URL, and title. Every numeric Markdown citation must resolve to the ledger. The ledger and assessment may retain consulted but uncited sources; `render-sources` includes only IDs actually cited by `report.md`. A single citation group may appear at the end of a paragraph when every sentence in that paragraph shares the same evidence; mixed-source paragraphs need sentence- or clause-local citations. Data-bearing table rows are independent citation units. The generated `## Sources` block must exactly match the cited subset.
+
+## Coverage gaps
+
+Each entry is either a non-empty string (accepted for compatibility) or an object:
+
+```json
+{"kind": "matrix-cell", "candidate": "Alpha", "criterion": "delivered cost", "description": "No all-in quote at cutoff.", "claim_ids": ["C7"]}
+```
+
+`kind` is one of `matrix-cell`, `access`, `missing-primary`, `unresolved-identity`, `unresolved-contradiction`, `not-researched`, `other`. `matrix-cell` gaps must name `candidate` and `criterion`; optional `claim_ids` must reference existing claims. Structured gaps let a successor report or a reviewer see exactly which cell, source, or identity was unresolved instead of parsing prose.
+
+## Lifecycle commands
+
+- `supersede <predecessor> --slug … --title … --cutoff …` creates a dated successor scaffold, copies the predecessor's questions, sets `lineage.supersedes`, and marks the predecessor `superseded` with `lineage.superseded_by`. The predecessor's cutoff and content are untouched.
+- `resolve <report> <H-id> --outcome … --at …` records a hypothesis outcome without editing its probability range. Outcomes `true`/`false` (or yes/no, occurred/did-not-occur) also record a binary `outcome_value` used for scoring.
+- `calibration` summarizes every hypothesis in the vault: open count, resolved count, Brier score over central estimates, and how many outcomes fell inside the stated interval. It is the reason ranges are recorded as numbers rather than adjectives.
 
 ## Review state
 

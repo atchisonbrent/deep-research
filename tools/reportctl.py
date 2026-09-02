@@ -35,6 +35,7 @@ ABBREVIATION_RE = re.compile(
 SENTENCE_RE = re.compile(r".*?[.!?][\"'\u201d\u2019)]*(?:\[\d+\])*(?=\s+|$)|.+$")
 PLACEHOLDER_PREFIX = "Replace with "
 EVIDENCE_KINDS = {"excerpt", "artifact"}
+GAP_KINDS = {"matrix-cell", "access", "missing-primary", "unresolved-identity", "unresolved-contradiction", "not-researched", "other"}
 
 SOURCE_TYPES = {
     "primary-record", "wire-service", "specialist", "government",
@@ -628,6 +629,22 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
 
     gaps = assessment.get("coverage_gaps")
     require(errors, isinstance(gaps, list), "coverage_gaps must be a list")
+    if isinstance(gaps, list):
+        for index, gap in enumerate(gaps):
+            where = f"coverage_gaps[{index}]"
+            if isinstance(gap, str):
+                require(errors, text(gap), f"{where} must be non-empty text")
+                continue
+            require(errors, isinstance(gap, dict), f"{where} must be a string or an object")
+            if not isinstance(gap, dict):
+                continue
+            require(errors, gap.get("kind") in GAP_KINDS, f"{where}.kind must be one of {sorted(GAP_KINDS)}")
+            require(errors, text(gap.get("description")), f"{where}.description must be non-empty")
+            if gap.get("kind") == "matrix-cell":
+                require(errors, text(gap.get("candidate")) and text(gap.get("criterion")), f"{where} matrix-cell gaps must name candidate and criterion")
+            for key in ("claim_ids",):
+                if key in gap:
+                    require(errors, isinstance(gap[key], list) and all(c in claim_by_id for c in gap[key]), f"{where}.{key} must reference known claims")
     review = assessment.get("review")
     require(errors, isinstance(review, dict), "review must be an object")
     if isinstance(review, dict):
@@ -857,6 +874,130 @@ assessment: assessment.json
     return directory
 
 
+
+def supersede_report(predecessor: Path, slug: str, title: str, cutoff: str, mode: str | None = None, domain: str | None = None) -> Path:
+    """Create a dated successor of ``predecessor`` and link lineage in both directions.
+
+    The predecessor keeps its cutoff and content; only ``status`` and
+    ``lineage.superseded_by`` change. The successor starts as a scaffold with
+    the predecessor's questions copied so the update can state what changed.
+    """
+    predecessor = predecessor.resolve()
+    pred_assessment_path = predecessor / "assessment.json"
+    pred_assessment = load_json(pred_assessment_path)
+    pred_report = pred_assessment.get("report") or {}
+    if pred_report.get("lineage", {}).get("superseded_by"):
+        raise ValueError(f"predecessor is already superseded by {pred_report['lineage']['superseded_by']}")
+    pred_cutoff = parse_temporal(pred_report.get("cutoff"))
+    new_cutoff = parse_temporal(cutoff)
+    if pred_cutoff is None or new_cutoff is None:
+        raise ValueError("both predecessor and successor cutoffs must be valid ISO-8601")
+    if new_cutoff <= pred_cutoff:
+        raise ValueError("successor cutoff must be later than the predecessor cutoff")
+    try:
+        pred_rel = predecessor.relative_to(ROOT.resolve())
+    except ValueError:
+        raise ValueError("predecessor must live under the vault root") from None
+    args = argparse.Namespace(
+        slug=slug,
+        title=title,
+        cutoff=cutoff,
+        mode=mode or pred_report.get("mode", "general"),
+        domain=domain or pred_report.get("domain", "general"),
+    )
+    successor = init_report(args)
+    succ_assessment_path = successor / "assessment.json"
+    succ_assessment = load_json(succ_assessment_path)
+    succ_assessment["report"]["lineage"]["supersedes"] = str(pred_rel)
+    succ_assessment["report"]["questions"] = list(pred_report.get("questions") or succ_assessment["report"]["questions"])
+    succ_assessment_path.write_text(json.dumps(succ_assessment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    succ_rel = successor.resolve().relative_to(ROOT.resolve())
+    pred_assessment["report"]["status"] = "superseded"
+    pred_assessment["report"]["lineage"]["superseded_by"] = str(succ_rel)
+    pred_assessment["report"]["updated"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    pred_assessment_path.write_text(json.dumps(pred_assessment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    pred_markdown_path = predecessor / "report.md"
+    pred_markdown = pred_markdown_path.read_text(encoding="utf-8")
+    pred_markdown = re.sub(r"(?m)^status: draft$|^status: reviewed$", "status: superseded", pred_markdown, count=1)
+    pred_markdown_path.write_text(pred_markdown, encoding="utf-8")
+    return successor
+
+
+def resolve_hypothesis(directory: Path, hypothesis_id: str, outcome: str, resolved_at: str, status: str = "resolved") -> None:
+    """Score a hypothesis after the fact without editing its original range."""
+    if status not in {"resolved", "superseded"}:
+        raise ValueError("status must be resolved or superseded")
+    if not text(outcome):
+        raise ValueError("--outcome must be non-empty")
+    if parse_temporal(resolved_at) is None:
+        raise ValueError("--at must be an ISO date or datetime")
+    assessment_path = directory / "assessment.json"
+    assessment = load_json(assessment_path)
+    hypothesis = next((h for h in assessment.get("hypotheses", []) if isinstance(h, dict) and h.get("id") == hypothesis_id), None)
+    if hypothesis is None:
+        raise ValueError(f"unknown hypothesis id: {hypothesis_id}")
+    resolution = hypothesis.get("resolution") or {}
+    if resolution.get("status") != "open":
+        raise ValueError(f"hypothesis {hypothesis_id} is already {resolution.get('status')}")
+    hypothesis["resolution"] = {"status": status, "outcome": outcome, "resolved_at": resolved_at}
+    if status == "resolved":
+        lowered = outcome.strip().lower()
+        if lowered in {"true", "yes", "occurred", "confirmed"}:
+            hypothesis["resolution"]["outcome_value"] = 1
+        elif lowered in {"false", "no", "did-not-occur", "refuted"}:
+            hypothesis["resolution"]["outcome_value"] = 0
+    assessment_path.write_text(json.dumps(assessment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def calibration_rows() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for assessment_path in sorted(REPORTS.glob("[0-9][0-9][0-9][0-9]/[0-9][0-9]/*/assessment.json")):
+        try:
+            assessment = load_json(assessment_path)
+        except ValueError:
+            continue
+        report = assessment.get("report") or {}
+        for hypothesis in assessment.get("hypotheses", []):
+            if not isinstance(hypothesis, dict):
+                continue
+            resolution = hypothesis.get("resolution") or {}
+            probability = hypothesis.get("probability") or {}
+            rows.append(
+                {
+                    "report": str(assessment_path.parent.relative_to(ROOT)),
+                    "cutoff": report.get("cutoff"),
+                    "hypothesis": hypothesis.get("id"),
+                    "statement": hypothesis.get("statement"),
+                    "central": probability.get("central"),
+                    "low": probability.get("low"),
+                    "high": probability.get("high"),
+                    "status": resolution.get("status"),
+                    "outcome": resolution.get("outcome"),
+                    "outcome_value": resolution.get("outcome_value"),
+                }
+            )
+    return rows
+
+
+def calibration_text(rows: list[dict[str, Any]]) -> str:
+    scored = [r for r in rows if r["status"] == "resolved" and r.get("outcome_value") in (0, 1) and isinstance(r.get("central"), (int, float))]
+    open_rows = [r for r in rows if r["status"] == "open"]
+    lines = ["# Forecast calibration", "", f"- Hypotheses: {len(rows)}", f"- Open: {len(open_rows)}", f"- Resolved with binary outcome: {len(scored)}"]
+    if scored:
+        brier = sum((float(r["central"]) - r["outcome_value"]) ** 2 for r in scored) / len(scored)
+        inside = sum(1 for r in scored if float(r["low"]) <= r["outcome_value"] <= float(r["high"]))
+        lines.append(f"- Brier score (central estimates): {brier:.3f}")
+        lines.append(f"- Outcomes inside stated interval: {inside}/{len(scored)}")
+        lines.extend(["", "| Report | Hypothesis | Central | Outcome | Squared error |", "|---|---|---|---|---|"])
+        for r in scored:
+            lines.append(f"| {r['report']} | {r['hypothesis']} | {float(r['central']):.2f} | {r['outcome_value']} | {(float(r['central']) - r['outcome_value']) ** 2:.3f} |")
+    if open_rows:
+        lines.extend(["", "## Open hypotheses", ""])
+        for r in open_rows:
+            lines.append(f"- {r['report']} {r['hypothesis']}: {r['statement']} (central {r['central']})")
+    return "\n".join(lines) + "\n"
+
+
 def index_text() -> str:
     entries: list[tuple[str, str, str, str, str, str, str]] = []
     for assessment_path in REPORTS.glob("[0-9][0-9][0-9][0-9]/[0-9][0-9]/*/assessment.json"):
@@ -965,6 +1106,20 @@ def main() -> int:
     add_evidence_parser.add_argument("--claim", action="append", required=True, dest="claims", metavar="CLAIM_ID")
     add_evidence_parser.add_argument("--location", required=True)
     add_evidence_parser.add_argument("--captured-at", required=True)
+    supersede = sub.add_parser("supersede", help="create a dated successor report and link lineage both ways")
+    supersede.add_argument("predecessor", type=Path)
+    supersede.add_argument("--slug", required=True)
+    supersede.add_argument("--title", required=True)
+    supersede.add_argument("--cutoff", required=True)
+    supersede.add_argument("--mode", choices=sorted(RESEARCH_MODES))
+    supersede.add_argument("--domain")
+    resolve = sub.add_parser("resolve", help="record the outcome of a hypothesis without editing its forecast")
+    resolve.add_argument("directory", type=Path)
+    resolve.add_argument("hypothesis_id")
+    resolve.add_argument("--outcome", required=True, help="free text; 'true'/'false' (or yes/no, occurred/did-not-occur) also records a binary outcome_value for scoring")
+    resolve.add_argument("--at", required=True, dest="resolved_at")
+    resolve.add_argument("--status", choices=("resolved", "superseded"), default="resolved")
+    sub.add_parser("calibration", help="summarize resolved hypotheses across the vault")
     index = sub.add_parser("index", help="regenerate reports/index.md")
     index.add_argument("--check", action="store_true")
     sub.add_parser("scan-sensitive", help="scan repository text for high-confidence secret material")
@@ -1020,6 +1175,26 @@ def main() -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
         print(json.dumps({"evidence_id": evidence_id, "source_id": args.source_id}) if args.json else evidence_id)
+        return 0
+    if args.command == "supersede":
+        try:
+            successor = supersede_report(args.predecessor, args.slug, args.title, args.cutoff, args.mode, args.domain)
+        except (ValueError, SystemExit) as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps({"successor": str(successor)}) if args.json else successor)
+        return 0
+    if args.command == "resolve":
+        try:
+            resolve_hypothesis(args.directory, args.hypothesis_id, args.outcome, args.resolved_at, args.status)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps({"hypothesis": args.hypothesis_id, "status": args.status}) if args.json else f"{args.status}: {args.hypothesis_id}")
+        return 0
+    if args.command == "calibration":
+        rows = calibration_rows()
+        print(json.dumps(rows, indent=2) if args.json else calibration_text(rows), end="" if not args.json else "\n")
         return 0
     if args.command == "index":
         path = REPORTS / "index.md"

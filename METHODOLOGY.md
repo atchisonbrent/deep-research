@@ -197,11 +197,9 @@ An update must identify:
 - prior statements now corrected;
 - unchanged high-value unknowns.
 
-Record `lineage.supersedes` in the new report. If an older report is explicitly
-retired, set its status to `superseded` and point `lineage.superseded_by` at the
-new report. The validator checks existence and chronological cutoff order.
+Use `reportctl.py supersede` to create the successor: it records `lineage.supersedes` in the new report, sets the old report's status to `superseded`, and points `lineage.superseded_by` at the successor. The validator checks existence and chronological cutoff order.
 
-Never edit an old forecast until it looks prescient. Preserve the miss; that is how calibration improves.
+Never edit an old forecast until it looks prescient. Preserve the miss; that is how calibration improves. Score hypotheses after the fact with `reportctl.py resolve`, and review the vault-wide record with `reportctl.py calibration`. A forecast that is never scored was a mood, not a forecast.
 
 ## 12. Independent review
 

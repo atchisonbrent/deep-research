@@ -122,7 +122,25 @@ git diff --check
 
 The validator checks source/claim/evidence integrity, independence-aware confidence guardrails, citation scope and coverage, report lineage, review state, and forecast requirements. Passing validation means the report satisfies the declared audit contract—not that Python has proven the report true.
 
-## 7. Publish or integrate
+## 7. Update, score, and calibrate
+
+When new evidence arrives after a report's cutoff, do not edit the old report. Create a linked successor:
+
+```bash
+python3 tools/reportctl.py supersede reports/2026/08/next-frontier-models \
+  --slug next-frontier-models-2026-10 \
+  --title "Likely next frontier model releases — October update" \
+  --cutoff 2026-10-01T00:00:00Z
+```
+
+When a hypothesis resolves, record the outcome without touching its original range, then review calibration across the vault:
+
+```bash
+python3 tools/reportctl.py resolve reports/2026/08/next-frontier-models H1 --outcome true --at 2026-10-15
+python3 tools/reportctl.py calibration
+```
+
+## 8. Publish or integrate
 
 The included GitHub Actions workflow runs the same checks on pushes and pull requests. Other agents and applications can consume:
 

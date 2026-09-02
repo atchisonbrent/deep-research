@@ -526,6 +526,90 @@ class ReportCtlTests(unittest.TestCase):
         self.assertEqual([], payload["errors"])
         self.assertEqual([], payload["warnings"])
 
+    def make_vault_with_fixture(self, temporary: str) -> tuple[Path, Path]:
+        root = Path(temporary)
+        report_dir = root / "reports" / "2026" / "08" / "minimal-report"
+        shutil.copytree(ROOT / "tests" / "fixtures" / "minimal-report", report_dir)
+        return root, report_dir
+
+    def test_supersede_links_lineage_both_ways_and_preserves_predecessor_cutoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, predecessor = self.make_vault_with_fixture(temporary)
+            with mock.patch.object(reportctl, "ROOT", root), mock.patch.object(reportctl, "REPORTS", root / "reports"):
+                successor = reportctl.supersede_report(predecessor, "minimal-update", "Minimal update", "2026-09-15T00:00:00Z")
+                pred = json.loads((predecessor / "assessment.json").read_text())
+                succ = json.loads((successor / "assessment.json").read_text())
+                self.assertEqual("superseded", pred["report"]["status"])
+                self.assertEqual("reports/2026/09/minimal-update", pred["report"]["lineage"]["superseded_by"])
+                self.assertEqual("2026-08-31T10:49:00Z", pred["report"]["cutoff"])
+                self.assertIn("status: superseded", (predecessor / "report.md").read_text())
+                self.assertEqual("reports/2026/08/minimal-report", succ["report"]["lineage"]["supersedes"])
+                self.assertEqual(pred["report"]["questions"], succ["report"]["questions"])
+                self.assertEqual("general", succ["report"]["mode"])
+                # predecessor still validates with its new status
+                self.assertEqual([], reportctl.validate_report(predecessor))
+                with self.assertRaisesRegex(ValueError, "already superseded"):
+                    reportctl.supersede_report(predecessor, "again", "Again", "2026-10-01T00:00:00Z")
+
+    def test_supersede_rejects_non_advancing_cutoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, predecessor = self.make_vault_with_fixture(temporary)
+            with mock.patch.object(reportctl, "ROOT", root), mock.patch.object(reportctl, "REPORTS", root / "reports"):
+                with self.assertRaisesRegex(ValueError, "later than the predecessor"):
+                    reportctl.supersede_report(predecessor, "early", "Early", "2026-08-31T10:49:00Z")
+                self.assertEqual("draft", json.loads((predecessor / "assessment.json").read_text())["report"]["status"])
+
+    def test_resolve_hypothesis_records_outcome_without_editing_range(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            reportctl.resolve_hypothesis(target, "H1", "true", "2026-10-01")
+            assessment = json.loads((target / "assessment.json").read_text())
+            hypothesis = assessment["hypotheses"][0]
+            self.assertEqual({"status": "resolved", "outcome": "true", "resolved_at": "2026-10-01", "outcome_value": 1}, hypothesis["resolution"])
+            self.assertEqual({"low": 0.55, "central": 0.65, "high": 0.75}, hypothesis["probability"])
+            self.assertEqual([], reportctl.validate_report(target))
+            with self.assertRaisesRegex(ValueError, "already resolved"):
+                reportctl.resolve_hypothesis(target, "H1", "false", "2026-10-02")
+            with self.assertRaisesRegex(ValueError, "unknown hypothesis"):
+                reportctl.resolve_hypothesis(target, "H9", "true", "2026-10-02")
+
+    def test_calibration_scores_resolved_binary_hypotheses(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, report_dir = self.make_vault_with_fixture(temporary)
+            reportctl.resolve_hypothesis(report_dir, "H1", "true", "2026-10-01")
+            with mock.patch.object(reportctl, "ROOT", root), mock.patch.object(reportctl, "REPORTS", root / "reports"):
+                rows = reportctl.calibration_rows()
+                text = reportctl.calibration_text(rows)
+            self.assertEqual(1, len(rows))
+            self.assertIn("Brier score (central estimates): 0.122", text)
+            self.assertIn("Outcomes inside stated interval: 0/1", text)
+
+    def test_structured_coverage_gaps_are_validated(self) -> None:
+        def good(assessment, report):
+            assessment["coverage_gaps"] = [
+                "Legacy free-text gap remains accepted.",
+                {"kind": "matrix-cell", "candidate": "Alpha", "criterion": "delivered cost", "description": "No all-in quote at cutoff.", "claim_ids": ["C1"]},
+                {"kind": "access", "description": "Paywalled filing not retrieved."},
+            ]
+            return assessment, report
+
+        def bad(assessment, report):
+            assessment["coverage_gaps"] = [
+                {"kind": "matrix-cell", "description": "missing candidate and criterion"},
+                {"kind": "nonsense", "description": "x"},
+                {"kind": "access", "description": "ok", "claim_ids": ["C9"]},
+            ]
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, good)
+            self.assertEqual([], errors)
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, bad)
+        self.assertIn("coverage_gaps[0] matrix-cell gaps must name candidate and criterion", errors)
+        self.assertTrue(any("coverage_gaps[1].kind must be one of" in e for e in errors))
+        self.assertIn("coverage_gaps[2].claim_ids must reference known claims", errors)
+
 
 if __name__ == "__main__":
     unittest.main()

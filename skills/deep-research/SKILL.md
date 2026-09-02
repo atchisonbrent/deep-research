@@ -47,7 +47,7 @@ test -f "$TOOL"
 python3 "$TOOL" --help
 ```
 
-Require `$FRAMEWORK/METHODOLOGY.md`, `$FRAMEWORK/SCHEMA.md`, `$FRAMEWORK/docs/QUICKSTART.md`, and `$FRAMEWORK/tools/reportctl.py`. The required CLI contract is public and standard-library-only: global `--root <vault>` (and optional `--json`) before the subcommand; `init`; `add-source`; `add-quote --from-file`; `add-evidence`; `render-sources`; `validate [--strict]`; `index`; and `scan-sensitive`. If the framework or CLI contract is unavailable, stop before producing a supposedly durable report; do not hand-build substitute IDs or a Sources block.
+Require `$FRAMEWORK/METHODOLOGY.md`, `$FRAMEWORK/SCHEMA.md`, `$FRAMEWORK/docs/QUICKSTART.md`, and `$FRAMEWORK/tools/reportctl.py`. The required CLI contract is public and standard-library-only: global `--root <vault>` (and optional `--json`) before the subcommand; `init`; `add-source`; `add-quote --from-file`; `add-evidence`; `render-sources`; `validate [--strict]`; `index`; `scan-sensitive`; `supersede`; `resolve`; and `calibration`. If the framework or CLI contract is unavailable, stop before producing a supposedly durable report; do not hand-build substitute IDs or a Sources block.
 
 Use the repository's current methodology and schema as authoritative. This skill defines the procedure; mode-specific evidence hierarchies live in `references/modes/`; report-specific truth belongs in the report repository.
 
@@ -177,9 +177,9 @@ Write the verdict first, then distinguish:
 
 Separate specifications from useful performance, demos from shipped availability, benchmark wins from workload fit, market narratives from measured economics, correlation from causation, announced plans from demonstrated execution, and enacted text from enforced rule. For motive questions, distinguish demonstrated decision chains from incentives and speculation.
 
-If the user changes a hard requirement, intended use, scope, or mandatory criterion after synthesis, discard the stale draft verdict and rerun the mode's gates. If no fresh evidence is needed, update the draft without changing its frozen cutoff. If evidence after the cutoff is required, create a dated successor report—even when the prior artifact is still draft—and connect `lineage.supersedes` and `lineage.superseded_by`; never silently advance the old cutoff or set status to `superseded` without a valid successor.
+If the user changes a hard requirement, intended use, scope, or mandatory criterion after synthesis, discard the stale draft verdict and rerun the mode's gates. If no fresh evidence is needed, update the draft without changing its frozen cutoff. If evidence after the cutoff is required, create a dated successor with `reportctl.py supersede <predecessor> --slug … --title … --cutoff …`—even when the prior artifact is still draft—which links `lineage.supersedes` and `lineage.superseded_by` and retires the predecessor; never silently advance the old cutoff or hand-edit status to `superseded`.
 
-Assign hypothesis probability ranges only after the claim ledger exists. Widen ranges when private intent, anonymous sourcing, dependence, access restrictions, or missing primary evidence dominate. Every hypothesis names at least one credible alternative and observable update triggers.
+Assign hypothesis probability ranges only after the claim ledger exists. Widen ranges when private intent, anonymous sourcing, dependence, access restrictions, or missing primary evidence dominate. Every hypothesis names at least one credible alternative and observable update triggers. When a prior report's hypothesis has resolved, record it with `reportctl.py resolve … --outcome … --at …` rather than editing the old range, and read `reportctl.py calibration` before assigning new ranges in the same domain.
 
 Completion: a reader can identify what happened, what is inferred, what remains unknown, and what evidence would change the judgment.
 
