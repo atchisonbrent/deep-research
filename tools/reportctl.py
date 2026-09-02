@@ -29,11 +29,25 @@ ABBREVIATIONS = (
     "Sen.", "Rep.", "Gov.", "Jan.", "Feb.", "Mar.", "Apr.", "Jun.", "Jul.",
     "Aug.", "Sep.", "Sept.", "Oct.", "Nov.", "Dec.",
 )
+# An abbreviation is protected only when the next token does not look like a
+# sentence start: it is followed by a lowercase word, a digit, a citation
+# group, or punctuation continuing the clause. ``Acme Inc. It filed`` splits;
+# ``Dr. Smith`` and ``U.S. forces`` do not. Title forms followed by a
+# capitalised proper noun are listed separately and always protected.
+TITLE_ABBREVIATIONS = ("Dr.", "Mr.", "Mrs.", "Ms.", "Jr.", "Sr.", "St.", "Gen.", "Lt.", "Col.", "Sen.", "Rep.", "Gov.", "Fig.", "No.")
+_ABBR_ALT = "|".join(re.escape(a) for a in sorted(ABBREVIATIONS, key=len, reverse=True))
+_TITLE_ALT = "|".join(re.escape(a) for a in sorted(TITLE_ABBREVIATIONS, key=len, reverse=True))
+# A citation group directly after the period (``Jan.[1]``) marks a sentence
+# end, so it is deliberately *not* a protecting context.
 ABBREVIATION_RE = re.compile(
-    r"(?<![A-Za-z0-9])(" + "|".join(re.escape(a) for a in sorted(ABBREVIATIONS, key=len, reverse=True)) + r")(?=\s|$)"
+    r"(?<![A-Za-z0-9])(?:(" + _TITLE_ALT + r")(?=\s+[A-Z0-9])|(" + _ABBR_ALT + r")(?=\s+[a-z0-9(\"'\u201c\u2018]|\s*[,;:)\]]))"
 )
 SENTENCE_RE = re.compile(r".*?[.!?][\"'\u201d\u2019)]*(?:\[\d+\])*(?=\s+|$)|.+$")
-PLACEHOLDER_PREFIX = "Replace with "
+# Scaffold placeholder marker. ``init`` writes it into every placeholder
+# sentence; the validator rejects any remaining occurrence. Ordinary prose that
+# happens to say "replace with" is unaffected.
+PLACEHOLDER_MARKER = "[[deep-research placeholder]]"
+PLACEHOLDER_PREFIX = PLACEHOLDER_MARKER + " Replace with "
 EVIDENCE_KINDS = {"excerpt", "artifact"}
 GAP_KINDS = {"matrix-cell", "access", "missing-primary", "unresolved-identity", "unresolved-contradiction", "not-researched", "other"}
 
@@ -83,6 +97,27 @@ MODE_SECTIONS: dict[str, list[str]] = {
 assert set(MODE_SECTIONS) == RESEARCH_MODES
 
 
+def write_json(path: Path, payload: Any) -> None:
+    """Atomically replace ``path`` with ``payload`` serialized as JSON."""
+    import os
+    import tempfile
+
+    data = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def load_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -111,8 +146,14 @@ def valid_datetime(value: Any) -> bool:
         return False
 
 
+DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
 def parse_temporal(value: Any) -> datetime | None:
-    """Parse an ISO date or datetime; date-only means unknown time."""
+    """Parse an ISO date or datetime; date-only means unknown time.
+
+    Timezone-naive datetimes are interpreted as UTC.
+    """
     if not text(value):
         return None
     try:
@@ -122,6 +163,31 @@ def parse_temporal(value: Any) -> datetime | None:
         return parsed
     except ValueError:
         return None
+
+
+def is_date_only(value: Any) -> bool:
+    return isinstance(value, str) and bool(DATE_ONLY_RE.fullmatch(value.strip()))
+
+
+def not_after(earlier: Any, later: Any) -> bool:
+    """True when ``earlier`` is at or before ``later``.
+
+    Two full datetimes compare as UTC instants. If either side is date-only,
+    the comparison falls back to calendar days in UTC, because a date carries
+    no time of day to compare against.
+    """
+    earlier_dt = parse_temporal(earlier)
+    later_dt = parse_temporal(later)
+    if earlier_dt is None or later_dt is None:
+        return True
+    if is_date_only(earlier) or is_date_only(later):
+        return earlier_dt.astimezone(timezone.utc).date() <= later_dt.astimezone(timezone.utc).date()
+    return earlier_dt <= later_dt
+
+
+def approx_ge(value: float, threshold: float) -> bool:
+    """Float-tolerant ``value >= threshold`` for probability arithmetic."""
+    return value + 1e-9 >= threshold
 
 
 def valid_url(value: Any) -> bool:
@@ -148,12 +214,36 @@ def split_cited_sentences(value: str) -> list[str]:
     punctuation and its citation group.
     """
     marker = "\u0000"
-    protected = ABBREVIATION_RE.sub(lambda m: m.group(1).replace(".", marker), value)
+    protected = ABBREVIATION_RE.sub(lambda m: (m.group(1) or m.group(2)).replace(".", marker), value)
     return [
         part.replace(marker, ".").strip()
         for part in SENTENCE_RE.findall(protected)
         if part.strip()
     ]
+
+
+def frontmatter_scalar(raw: str) -> str:
+    """Decode a frontmatter scalar: a JSON/YAML double-quoted string, a
+    single-quoted YAML string, or a bare value with surrounding whitespace
+    removed."""
+    value = raw.strip()
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        try:
+            decoded = json.loads(value)
+            if isinstance(decoded, str):
+                return decoded
+        except json.JSONDecodeError:
+            return value[1:-1]
+    if len(value) >= 2 and value[0] == value[-1] == "'":
+        return value[1:-1].replace("''", "'")
+    return value
+
+
+def frontmatter_encode(value: str) -> str:
+    """Encode a scalar for generated frontmatter; quote when YAML would misread it."""
+    if value != value.strip() or not value or any(ch in value for ch in ':#{}[],&*!|>\'"%@`') or value.lower() in {"yes", "no", "true", "false", "null", "~"}:
+        return json.dumps(value, ensure_ascii=False)
+    return value
 
 
 def report_body_and_sources(markdown: str) -> tuple[str, dict[int, str]]:
@@ -173,24 +263,44 @@ def report_body_and_sources(markdown: str) -> tuple[str, dict[int, str]]:
 
 
 def is_table_separator(stripped: str) -> bool:
-    return bool(re.fullmatch(r"[| :\-]+", stripped))
+    return "-" in stripped and bool(re.fullmatch(r"\|?(?:\s*:?-{1,}:?\s*\|)*\s*:?-{1,}:?\s*\|?", stripped))
+
+
+def table_rows(lines: list[str]) -> set[int]:
+    """Return indexes of lines that belong to a Markdown table.
+
+    A table is a header line, a separator line, then body lines, each with at
+    least one ``|`` cell delimiter. Outer pipes are optional; the separator
+    row is what makes a pipe-bearing run of lines a table.
+    """
+    rows: set[int] = set()
+    index = 0
+    while index < len(lines) - 1:
+        header = lines[index].strip()
+        separator = lines[index + 1].strip()
+        if "|" in header and not is_table_separator(header) and is_table_separator(separator) and "|" in separator:
+            rows.add(index)
+            rows.add(index + 1)
+            index += 2
+            while index < len(lines) and lines[index].strip() and "|" in lines[index]:
+                rows.add(index)
+                index += 1
+            continue
+        index += 1
+    return rows
 
 
 def table_header_indexes(lines: list[str]) -> set[int]:
-    """Return indexes of table header rows: a table row directly followed by a separator row."""
-    headers: set[int] = set()
-    for index in range(len(lines) - 1):
-        current = lines[index].strip()
-        following = lines[index + 1].strip()
-        if current.startswith("|") and not is_table_separator(current) and following.startswith("|") and is_table_separator(following):
-            headers.add(index)
-    return headers
+    """Return indexes of table header rows: the line immediately above a separator row within a table."""
+    rows = table_rows(lines)
+    return {index for index in rows if index + 1 in rows and is_table_separator(lines[index + 1].strip()) and not is_table_separator(lines[index].strip())}
 
 
 def prose_sentences(markdown: str) -> list[str]:
     sentences: list[str] = []
     in_fence = False
     lines = markdown.splitlines()
+    rows = table_rows(lines)
     headers = table_header_indexes(lines)
     for index, line in enumerate(lines):
         stripped = line.strip()
@@ -205,8 +315,7 @@ def prose_sentences(markdown: str) -> list[str]:
             or re.match(r"^[a-z_]+:\s", stripped)
         ):
             continue
-        is_table = stripped.startswith("|")
-        if is_table:
+        if index in rows:
             if is_table_separator(stripped) or index in headers:
                 continue
             stripped = stripped.strip("| ")
@@ -233,6 +342,7 @@ def prose_units(markdown: str) -> list[str]:
     in_fence = False
     in_frontmatter = False
     lines = markdown.splitlines()
+    rows = table_rows(lines)
     headers = table_header_indexes(lines)
 
     def flush() -> None:
@@ -264,7 +374,7 @@ def prose_units(markdown: str) -> list[str]:
         if stripped.startswith("#"):
             flush()
             continue
-        if stripped.startswith("|"):
+        if line_number in rows:
             flush()
             if not is_table_separator(stripped) and line_number not in headers:
                 units.append(stripped)
@@ -273,11 +383,12 @@ def prose_units(markdown: str) -> list[str]:
             flush()
             list_item.append(stripped)
             continue
-        if list_item and line[:1].isspace():
+        if list_item:
+            # Indented continuation or CommonMark lazy continuation: a
+            # non-blank, non-marker line directly after a list item belongs
+            # to that item.
             list_item.append(stripped)
             continue
-        if list_item:
-            flush()
         paragraph.append(stripped)
     flush()
     return [unit for unit in units if len(unit.split()) >= 4]
@@ -407,10 +518,15 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         require(errors, text(source.get("title")), f"{where}.title must be non-empty")
         require(errors, parse_temporal(source.get("accessed")) is not None, f"{where}.accessed must be an ISO date or datetime")
         quotes = source.get("quotes", [])
+        if quotes is None:
+            quotes = []
         require(errors, isinstance(quotes, list), f"{where}.quotes must be a list when present")
-        if isinstance(quotes, list):
+        if not isinstance(quotes, list):
+            source["quotes"] = []
+        else:
             for quote_index, quote in enumerate(quotes):
                 require(errors, isinstance(quote, dict) and text(quote.get("text")), f"{where}.quotes[{quote_index}].text must be non-empty")
+            source["quotes"] = [quote for quote in quotes if isinstance(quote, dict) and text(quote.get("text"))]
         if isinstance(source_id, int):
             require(errors, source_id not in ledger_by_id, f"duplicate ledger source id: {source_id}")
             ledger_by_id[source_id] = source
@@ -435,12 +551,10 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
             require(errors, text(source.get(key)), f"{where}.{key} must be non-empty text")
         require(errors, source.get("published_at") is None or parse_temporal(source.get("published_at")) is not None, f"{where}.published_at must be null or an ISO date/datetime")
         require(errors, parse_temporal(source.get("retrieved_at")) is not None, f"{where}.retrieved_at must be an ISO date or datetime")
-        retrieved_dt = parse_temporal(source.get("retrieved_at"))
-        published_dt = parse_temporal(source.get("published_at"))
-        if retrieved_dt and cutoff_dt:
-            require(errors, retrieved_dt.date() <= cutoff_dt.date(), f"{where}.retrieved_at is after the report cutoff")
-        if retrieved_dt and published_dt:
-            require(errors, published_dt.date() <= retrieved_dt.date(), f"{where}.published_at is after retrieved_at")
+        if cutoff_dt:
+            require(errors, not_after(source.get("retrieved_at"), report.get("cutoff")), f"{where}.retrieved_at is after the report cutoff")
+        if source.get("published_at") is not None:
+            require(errors, not_after(source.get("published_at"), source.get("retrieved_at")), f"{where}.published_at is after retrieved_at")
         require(errors, source.get("source_type") in SOURCE_TYPES, f"{where}.source_type invalid")
         require(errors, source.get("access") in ACCESS, f"{where}.access invalid")
         require(errors, source.get("directness") in DIRECTNESS, f"{where}.directness invalid")
@@ -501,9 +615,8 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
             require(errors, isinstance(claim.get(key), list), f"{where}.{key} must be a list")
         require(errors, text(claim.get("rationale")), f"{where}.rationale must be non-empty")
         require(errors, valid_datetime(claim.get("last_checked")), f"{where}.last_checked must be ISO-8601")
-        last_checked_dt = parse_temporal(claim.get("last_checked"))
-        if last_checked_dt and cutoff_dt:
-            require(errors, last_checked_dt <= cutoff_dt, f"{where}.last_checked is after the report cutoff")
+        if cutoff_dt:
+            require(errors, not_after(claim.get("last_checked"), report.get("cutoff")), f"{where}.last_checked is after the report cutoff")
         for source_id in claim.get("source_ids", []) + claim.get("contradicting_source_ids", []):
             require(errors, source_id in source_by_id, f"{where} references unknown source {source_id}")
         if claim.get("importance") == "load-bearing" and claim.get("kind") not in {"forecast", "unknown"}:
@@ -511,25 +624,22 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         supporting = [source_by_id[source_id] for source_id in claim.get("source_ids", []) if source_id in source_by_id]
         groups = {source.get("independence_group") for source in supporting}
         has_direct_full = any(source.get("directness") == "direct" and source.get("access") == "full" for source in supporting)
-        has_non_snippet = any(source.get("access") in {"full", "partial"} for source in supporting)
         if claim.get("importance") == "load-bearing" and claim.get("status") == "confirmed" and claim.get("kind") in {"fact", "attributed"}:
             require(errors, has_direct_full or len(groups) >= 2, f"{where} confirmed load-bearing claim requires direct full evidence or two independence groups")
-        if claim.get("importance") == "load-bearing" and supporting and claim.get("kind") in {"fact", "attributed"}:
-            require(errors, has_non_snippet, f"{where} load-bearing claim cannot rest on snippet-only sources")
         confidence = claim.get("confidence")
         if isinstance(confidence, list) and valid_range(confidence):
             low_confidence = float(confidence[0])
             high_confidence = float(confidence[1])
             if supporting and len(groups) <= 1 and not has_direct_full:
-                require(errors, high_confidence <= 0.95, f"{where} single-group indirect evidence cannot exceed 0.95 confidence")
-                require(errors, high_confidence - low_confidence >= 0.15, f"{where} single-group indirect evidence requires a confidence width of at least 0.15")
+                require(errors, approx_ge(0.95, high_confidence), f"{where} single-group indirect evidence cannot exceed 0.95 confidence")
+                require(errors, approx_ge(high_confidence - low_confidence, 0.15), f"{where} single-group indirect evidence requires a confidence width of at least 0.15")
             status = claim.get("status")
             if status in STATUS_CONFIDENCE_FLOOR:
-                require(errors, low_confidence >= STATUS_CONFIDENCE_FLOOR[status], f"{where} status {status!r} requires confidence low >= {STATUS_CONFIDENCE_FLOOR[status]:.2f}")
+                require(errors, approx_ge(low_confidence, STATUS_CONFIDENCE_FLOOR[status]), f"{where} status {status!r} requires confidence low >= {STATUS_CONFIDENCE_FLOOR[status]:.2f}")
             if status in STATUS_CONFIDENCE_CEILING:
-                require(errors, high_confidence <= STATUS_CONFIDENCE_CEILING[status], f"{where} status {status!r} requires confidence high <= {STATUS_CONFIDENCE_CEILING[status]:.2f}")
-            if claim.get("kind") == "unknown":
-                require(errors, high_confidence - low_confidence >= 0.30, f"{where} unknown claims must carry a wide confidence interval (>= 0.30)")
+                require(errors, approx_ge(STATUS_CONFIDENCE_CEILING[status], high_confidence), f"{where} status {status!r} requires confidence high <= {STATUS_CONFIDENCE_CEILING[status]:.2f}")
+            if status == "unknown":
+                require(errors, approx_ge(high_confidence - low_confidence, 0.30), f"{where} status 'unknown' must carry a wide confidence interval (>= 0.30)")
         if claim_id:
             require(errors, claim_id not in claim_by_id, f"duplicate claim id: {claim_id}")
             claim_by_id[claim_id] = claim
@@ -540,6 +650,8 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         evidence = []
     evidence_claims: set[str] = set()
     evidence_ids: set[str] = set()
+    # claim id -> access levels of sources that actually carry evidence for it
+    evidence_access_by_claim: dict[str, set[str]] = {}
     for index, item in enumerate(evidence):
         where = f"evidence[{index}]"
         require(errors, isinstance(item, dict), f"{where} must be an object")
@@ -547,6 +659,8 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
             continue
         raw_evidence_id = item.get("id")
         evidence_id = raw_evidence_id if isinstance(raw_evidence_id, str) else ""
+        if evidence_id:
+            where = f"evidence[{index}] ({evidence_id})"
         require(errors, bool(evidence_id) and bool(ID_RE.fullmatch(evidence_id)), f"{where}.id invalid")
         require(errors, evidence_id not in evidence_ids, f"duplicate evidence id: {evidence_id}")
         if evidence_id:
@@ -556,27 +670,36 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         require(errors, len(str(item.get("excerpt", ""))) <= 1000, f"{where}.excerpt exceeds 1000 characters")
         require(errors, text(item.get("location")), f"{where}.location must be non-empty")
         require(errors, valid_datetime(item.get("captured_at")), f"{where}.captured_at must be ISO-8601")
-        captured_dt = parse_temporal(item.get("captured_at"))
-        if captured_dt and cutoff_dt:
-            require(errors, captured_dt <= cutoff_dt, f"{where}.captured_at is after the report cutoff")
+        if cutoff_dt:
+            require(errors, not_after(item.get("captured_at"), report.get("cutoff")), f"{where}.captured_at is after the report cutoff")
         kind = item.get("kind", "excerpt")
         require(errors, kind in EVIDENCE_KINDS, f"{where}.kind must be one of {sorted(EVIDENCE_KINDS)}")
         if kind == "excerpt" and item.get("source_id") in ledger_by_id and text(item.get("excerpt")):
             ledger_quotes = {normalize_whitespace(str(q.get("text", ""))) for q in ledger_by_id[item["source_id"]].get("quotes", []) if isinstance(q, dict)}
             verified = normalize_whitespace(str(item["excerpt"])) in ledger_quotes
             if not verified:
-                warnings.append(f"{where}.excerpt has no verified ledger quote for source {item['source_id']}; use `add-evidence` or `add-quote --from-file`, or set kind to 'artifact' for non-text evidence")
+                warnings.append(f"{where}.excerpt has no matching ledger quote for source {item['source_id']}; record it with `add-evidence` or `add-quote --from-file`, or set kind to 'artifact' for non-text evidence")
         supports = item.get("supports_claim_ids")
         require(errors, isinstance(supports, list) and bool(supports), f"{where}.supports_claim_ids must be non-empty")
         if isinstance(supports, list):
+            evidence_source = source_by_id.get(item.get("source_id")) if isinstance(item.get("source_id"), int) else None
             for claim_id in supports:
                 require(errors, claim_id in claim_by_id, f"{where} references unknown claim {claim_id}")
                 evidence_claims.add(claim_id)
                 if claim_id in claim_by_id:
-                    require(errors, item.get("source_id") in claim_by_id[claim_id].get("source_ids", []), f"{where}.source_id must be listed by supported claim {claim_id}")
+                    claim_sources = claim_by_id[claim_id].get("source_ids")
+                    require(errors, isinstance(claim_sources, list) and item.get("source_id") in claim_sources, f"{where}.source_id must be listed by supported claim {claim_id}")
+                    if evidence_source is not None:
+                        evidence_access_by_claim.setdefault(str(claim_id), set()).add(str(evidence_source.get("access")))
     for claim_id, claim in claim_by_id.items():
         if claim.get("importance") == "load-bearing" and claim.get("kind") in {"fact", "attributed"}:
             require(errors, claim_id in evidence_claims, f"load-bearing claim {claim_id} requires a short evidence excerpt")
+            if claim_id in evidence_claims:
+                require(
+                    errors,
+                    bool(evidence_access_by_claim.get(claim_id, set()) & {"full", "partial"}),
+                    f"load-bearing claim {claim_id} cannot rest on snippet-only evidence; attach evidence from a full or partial source",
+                )
 
     hypotheses = assessment.get("hypotheses")
     require(errors, isinstance(hypotheses, list), "hypotheses must be a list")
@@ -683,7 +806,7 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
     frontmatter_match = re.match(r"^---\n(.*?)\n---\n", markdown, re.DOTALL)
     require(errors, frontmatter_match is not None, "report.md must start with frontmatter")
     if frontmatter_match:
-        fields = dict(re.findall(r"^([a-z_]+):\s*(.+)$", frontmatter_match.group(1), re.MULTILINE))
+        fields = {key: frontmatter_scalar(raw) for key, raw in re.findall(r"^([a-z_]+):\s*(.+)$", frontmatter_match.group(1), re.MULTILINE)}
         for key in ("title", "slug", "mode", "domain", "cutoff", "status"):
             require(errors, fields.get(key) == str(report.get(key, "")), f"report.md frontmatter {key} differs from assessment.json")
     require(errors, PLACEHOLDER_PREFIX not in body, "report.md still contains init placeholder text")
@@ -711,19 +834,21 @@ def add_source(directory: Path, url: str, title: str, accessed: str) -> int:
     ledger_path = directory / "sources-ledger.json"
     ledger = load_json(ledger_path)
     sources = ledger.setdefault("sources", [])
+    if not isinstance(sources, list) or not all(isinstance(item, dict) for item in sources):
+        raise ValueError("sources-ledger.json sources must be a list of objects")
     for source in sources:
         if source.get("url") == url:
             source["accessed"] = accessed
-            ledger_path.write_text(json.dumps(ledger, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            write_json(ledger_path, ledger)
             return int(source["id"])
-    source_id = max((int(source["id"]) for source in sources), default=0) + 1
+    source_id = max((int(source["id"]) for source in sources if isinstance(source.get("id"), int)), default=0) + 1
     sources.append({"id": source_id, "url": url, "title": title, "accessed": accessed})
-    ledger_path.write_text(json.dumps(ledger, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_json(ledger_path, ledger)
     return source_id
 
 
-def add_quote(directory: Path, source_id: int, quote: str, evidence_file: Path) -> None:
-    """Verify ``quote`` against ``evidence_file`` and record it in the ledger."""
+def verify_quote(quote: str, evidence_file: Path) -> None:
+    """Raise ``ValueError`` unless ``quote`` appears verbatim (whitespace-normalized) in ``evidence_file``."""
     if not text(quote):
         raise ValueError("quote text must be non-empty")
     if len(quote) > 1000:
@@ -731,15 +856,44 @@ def add_quote(directory: Path, source_id: int, quote: str, evidence_file: Path) 
     evidence = evidence_file.read_text(encoding="utf-8")
     if normalize_whitespace(quote) not in normalize_whitespace(evidence):
         raise ValueError("quote was not found verbatim in the evidence file")
-    ledger_path = directory / "sources-ledger.json"
-    ledger = load_json(ledger_path)
-    source = next((item for item in ledger.get("sources", []) if item.get("id") == source_id), None)
+
+
+def ledger_source(ledger: Any, source_id: int) -> dict[str, Any]:
+    sources = ledger.get("sources") if isinstance(ledger, dict) else None
+    if not isinstance(sources, list):
+        raise ValueError("sources-ledger.json sources must be a list")
+    source = next((item for item in sources if isinstance(item, dict) and item.get("id") == source_id), None)
     if source is None:
         raise ValueError(f"unknown source id: {source_id}")
-    quotes = source.setdefault("quotes", [])
-    if not any(normalize_whitespace(item.get("text", "")) == normalize_whitespace(quote) for item in quotes):
-        quotes.append({"text": quote, "added": datetime.now(timezone.utc).date().isoformat()})
-        ledger_path.write_text(json.dumps(ledger, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return source
+
+
+def record_quote(ledger: Any, source_id: int, quote: str) -> bool:
+    """Append ``quote`` to the ledger source in memory; return True when it was new."""
+    source = ledger_source(ledger, source_id)
+    quotes = source.get("quotes")
+    if not isinstance(quotes, list):
+        quotes = []
+        source["quotes"] = quotes
+    if any(isinstance(item, dict) and normalize_whitespace(str(item.get("text", ""))) == normalize_whitespace(quote) for item in quotes):
+        return False
+    quotes.append({"text": quote, "added": datetime.now(timezone.utc).date().isoformat()})
+    return True
+
+
+def add_quote(directory: Path, source_id: int, quote: str, evidence_file: Path) -> None:
+    """Verify ``quote`` against ``evidence_file`` and record it in the ledger.
+
+    The check attests that the quotation matches the caller-supplied text
+    file; it does not and cannot prove the file was fetched from the
+    registered URL. Keep fetched text under the report's ``evidence/``
+    directory so that provenance stays inspectable.
+    """
+    verify_quote(quote, evidence_file)
+    ledger_path = directory / "sources-ledger.json"
+    ledger = load_json(ledger_path)
+    if record_quote(ledger, source_id, quote):
+        write_json(ledger_path, ledger)
 
 
 def next_prefixed_id(existing: list[str], prefix: str) -> str:
@@ -763,8 +917,14 @@ def add_evidence(
     """Verify a quotation, record it in the ledger, and attach a claim-facing evidence record.
 
     This is the one-step path that keeps ``sources-ledger.json`` quotes and
-    ``assessment.json.evidence`` in agreement, so the validator can prove the
-    excerpt was checked against fetched text.
+    ``assessment.json.evidence`` in agreement, so the validator can confirm the
+    excerpt corresponds to a quotation that was checked against supplied text.
+
+    All inputs are validated before the first write. Both files are then
+    replaced atomically, ledger first: if the second write fails, the ledger
+    holds an extra verified quote and re-running the same command is
+    idempotent, whereas an assessment record without its quote would be
+    exactly the unverifiable state the validator warns about.
     """
     if not claim_ids:
         raise ValueError("at least one --claim is required")
@@ -772,28 +932,65 @@ def add_evidence(
         raise ValueError("--location must be non-empty")
     if not valid_datetime(captured_at):
         raise ValueError("--captured-at must be ISO-8601")
+    verify_quote(quote, evidence_file)
+
     assessment_path = directory / "assessment.json"
+    ledger_path = directory / "sources-ledger.json"
     assessment = load_json(assessment_path)
-    claims = assessment.get("claims") or []
-    known = {claim.get("id") for claim in claims if isinstance(claim, dict)}
+    ledger = load_json(ledger_path)
+    if not isinstance(assessment, dict):
+        raise ValueError("assessment.json must be an object")
+    ledger_source(ledger, source_id)
+    report = assessment.get("report") if isinstance(assessment.get("report"), dict) else {}
+    if report.get("cutoff") and not not_after(captured_at, report.get("cutoff")):
+        raise ValueError("--captured-at is after the report cutoff")
+
+    claims = assessment.get("claims")
+    if not isinstance(claims, list) or not all(isinstance(claim, dict) for claim in claims):
+        raise ValueError("assessment.json claims must be a list of objects")
+    known = {claim.get("id") for claim in claims}
     missing = [claim_id for claim_id in claim_ids if claim_id not in known]
     if missing:
         raise ValueError(f"unknown claim id(s): {', '.join(missing)}")
     for claim in claims:
-        if isinstance(claim, dict) and claim.get("id") in claim_ids and source_id not in (claim.get("source_ids") or []):
-            raise ValueError(f"claim {claim['id']} does not list source {source_id}; add it to source_ids first")
-    add_quote(directory, source_id, quote, evidence_file)
-    evidence = assessment.setdefault("evidence", [])
+        if claim.get("id") in claim_ids:
+            claim_sources = claim.get("source_ids")
+            if not isinstance(claim_sources, list) or source_id not in claim_sources:
+                raise ValueError(f"claim {claim['id']} does not list source {source_id}; add it to source_ids first")
+
+    evidence = assessment.get("evidence")
+    if evidence is None:
+        evidence = []
+        assessment["evidence"] = evidence
+    if not isinstance(evidence, list) or not all(isinstance(item, dict) for item in evidence):
+        raise ValueError("assessment.json evidence must be a list of objects")
     for item in evidence:
-        if isinstance(item, dict) and item.get("source_id") == source_id and normalize_whitespace(str(item.get("excerpt", ""))) == normalize_whitespace(quote):
-            merged = sorted(set(item.get("supports_claim_ids", [])) | set(claim_ids))
-            item["supports_claim_ids"] = merged
-            assessment_path.write_text(json.dumps(assessment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-            return str(item["id"])
-    evidence_id = next_prefixed_id([item.get("id") for item in evidence if isinstance(item, dict)], "E")
+        if not isinstance(item.get("supports_claim_ids", []), list):
+            raise ValueError(f"evidence {item.get('id')!r} has a malformed supports_claim_ids")
+
+    existing = next(
+        (
+            item
+            for item in evidence
+            if item.get("kind", "excerpt") == "excerpt"
+            and item.get("source_id") == source_id
+            and normalize_whitespace(str(item.get("excerpt", ""))) == normalize_whitespace(quote)
+        ),
+        None,
+    )
+    if existing is not None and not text(existing.get("id")):
+        raise ValueError("an existing matching evidence record has no id; repair assessment.json first")
+    new_id = None if existing is not None else next_prefixed_id([item.get("id") for item in evidence], "E")
+
+    if record_quote(ledger, source_id, quote):
+        write_json(ledger_path, ledger)
+    if existing is not None:
+        existing["supports_claim_ids"] = sorted(set(existing.get("supports_claim_ids", [])) | set(claim_ids))
+        write_json(assessment_path, assessment)
+        return str(existing["id"])
     evidence.append(
         {
-            "id": evidence_id,
+            "id": new_id,
             "kind": "excerpt",
             "source_id": source_id,
             "excerpt": quote,
@@ -802,8 +999,8 @@ def add_evidence(
             "captured_at": captured_at,
         }
     )
-    assessment_path.write_text(json.dumps(assessment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return evidence_id
+    write_json(assessment_path, assessment)
+    return str(new_id)
 
 
 def init_report(args: argparse.Namespace) -> Path:
@@ -830,8 +1027,8 @@ def init_report(args: argparse.Namespace) -> Path:
             "updated": now,
             "status": "draft",
             "lineage": {"supersedes": None, "superseded_by": None},
-            "summary": "Replace with the decision-grade verdict.",
-            "questions": ["Replace with the first research question."],
+            "summary": f"{PLACEHOLDER_PREFIX}the decision-grade verdict.",
+            "questions": [f"{PLACEHOLDER_PREFIX}the first research question."],
         },
         "sources": [],
         "claims": [],
@@ -844,14 +1041,14 @@ def init_report(args: argparse.Namespace) -> Path:
             "notes": "Independent review has not run.",
         },
     }
-    (directory / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n", encoding="utf-8")
+    write_json(directory / "assessment.json", assessment)
     (directory / "sources-ledger.json").write_text('{\n  "version": 1,\n  "sources": []\n}\n', encoding="utf-8")
     sections = "\n\n".join(
         f"## {heading}\n\n{PLACEHOLDER_PREFIX}the {heading.lower()} content for this {args.mode} report.[unverified]"
         for heading in MODE_SECTIONS[args.mode]
     )
     report = f"""---
-title: {args.title}
+title: {frontmatter_encode(args.title)}
 slug: {args.slug}
 mode: {args.mode}
 domain: {args.domain}
@@ -910,12 +1107,12 @@ def supersede_report(predecessor: Path, slug: str, title: str, cutoff: str, mode
     succ_assessment = load_json(succ_assessment_path)
     succ_assessment["report"]["lineage"]["supersedes"] = str(pred_rel)
     succ_assessment["report"]["questions"] = list(pred_report.get("questions") or succ_assessment["report"]["questions"])
-    succ_assessment_path.write_text(json.dumps(succ_assessment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_json(succ_assessment_path, succ_assessment)
     succ_rel = successor.resolve().relative_to(ROOT.resolve())
     pred_assessment["report"]["status"] = "superseded"
     pred_assessment["report"]["lineage"]["superseded_by"] = str(succ_rel)
     pred_assessment["report"]["updated"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    pred_assessment_path.write_text(json.dumps(pred_assessment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_json(pred_assessment_path, pred_assessment)
     pred_markdown_path = predecessor / "report.md"
     pred_markdown = pred_markdown_path.read_text(encoding="utf-8")
     pred_markdown = re.sub(r"(?m)^status: draft$|^status: reviewed$", "status: superseded", pred_markdown, count=1)
@@ -946,7 +1143,7 @@ def resolve_hypothesis(directory: Path, hypothesis_id: str, outcome: str, resolv
             hypothesis["resolution"]["outcome_value"] = 1
         elif lowered in {"false", "no", "did-not-occur", "refuted"}:
             hypothesis["resolution"]["outcome_value"] = 0
-    assessment_path.write_text(json.dumps(assessment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_json(assessment_path, assessment)
 
 
 def calibration_rows() -> list[dict[str, Any]]:
@@ -1041,11 +1238,36 @@ def orphan_report_errors() -> list[str]:
     ]
 
 
+SENSITIVE_ALLOWLIST_FILE = ".sensitive-allowlist"
+
+
+def sensitive_allowlist() -> set[str]:
+    """Reviewed literal strings that ``scan-sensitive`` must not flag.
+
+    One entry per line in ``<root>/.sensitive-allowlist``; ``#`` starts a
+    comment. Use it for documented example values (public JWTs, redacted key
+    shapes) that a report legitimately quotes. The file is itself committed
+    and reviewable, so every suppression is visible in history.
+    """
+    path = ROOT / SENSITIVE_ALLOWLIST_FILE
+    if not path.is_file():
+        return set()
+    entries: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.split("#", 1)[0].strip()
+        if stripped:
+            entries.add(stripped)
+    return entries
+
+
 def sensitive_content_errors() -> list[str]:
     errors: list[str] = []
     forbidden_names = {".env", "auth.json", "credentials.json", "id_rsa", "id_ed25519"}
+    allowlist = sensitive_allowlist()
     patterns = {
-        "private key": re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----"),
+        # A key header followed by base64 body content; the bare header alone
+        # is ordinary text about keys, not a key.
+        "private key": re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----\s*(?:[A-Za-z-]+:.*\n\s*)*[A-Za-z0-9+/=]{16,}"),
         "GitHub token": re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b"),
         "GitHub fine-grained token": re.compile(r"\bgithub_pat_[A-Za-z0-9_]{40,}\b"),
         "AWS access key": re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
@@ -1065,17 +1287,54 @@ def sensitive_content_errors() -> list[str]:
             content = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
+        if path.name == SENSITIVE_ALLOWLIST_FILE:
+            continue
         for label, pattern in patterns.items():
-            if pattern.search(content):
+            for match in pattern.finditer(content):
+                candidate = match.group(0)
+                if candidate.strip() in allowlist or low_entropy(candidate):
+                    continue
                 errors.append(f"possible {label} in {path.relative_to(ROOT)}")
+                break
     return errors
+
+
+def low_entropy(candidate: str) -> bool:
+    """True for obvious dummy values: a run of one repeated character or a
+    trivial ascending sequence in the secret-bearing tail."""
+    tail = re.sub(r"^[A-Za-z_-]+[-_]", "", candidate)
+    if len(tail) < 8:
+        return False
+    if len(set(tail)) <= 2:
+        return True
+    return tail in ("0123456789abcdef" * 8)[: len(tail)] or tail.lower() in ("abcdefghijklmnopqrstuvwxyz" * 4)[: len(tail)]
+
+
+def emit(args: argparse.Namespace, ok: bool, payload: dict[str, Any], human: str, *, errors: list[str] | None = None) -> int:
+    """Print a result in JSON or human form and return the exit status.
+
+    JSON mode always writes one object to stdout with ``ok``, ``command``,
+    ``errors``, and command-specific fields; nothing goes to stderr. Human mode
+    writes errors to stderr as ``ERROR: …`` lines.
+    """
+    errors = errors or []
+    if args.json:
+        body = {"ok": ok, "command": args.command, "errors": errors}
+        body.update(payload)
+        print(json.dumps(body, indent=2, ensure_ascii=False))
+    else:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        if ok and human:
+            print(human)
+    return 0 if ok else 1
 
 
 def main() -> int:
     global ROOT, REPORTS
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT, help="repository root containing reports/ (default: framework checkout)")
-    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON results on stdout")
+    parser.add_argument("--json", action="store_true", help="emit one JSON object on stdout for every command and error path")
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init", help="create a report skeleton")
     init.add_argument("--slug", required=True)
@@ -1127,103 +1386,68 @@ def main() -> int:
     ROOT = args.root.resolve()
     REPORTS = ROOT / "reports"
 
-    if args.command == "init":
-        print(init_report(args))
-        return 0
-    if args.command == "validate":
-        warnings: list[str] = []
-        errors = validate_report(args.directory, warnings)
-        if args.strict:
-            errors = errors + [f"strict: {warning}" for warning in warnings]
-            warnings = []
-        if args.json:
-            print(json.dumps({"ok": not errors, "directory": str(args.directory), "errors": errors, "warnings": warnings}, indent=2))
-            return 1 if errors else 0
-        for warning in warnings:
-            print(f"WARNING: {warning}", file=sys.stderr)
-        if errors:
-            for error in errors:
-                print(f"ERROR: {error}", file=sys.stderr)
-            return 1
-        suffix = f" ({len(warnings)} warning(s))" if warnings else ""
-        print(f"OK: {args.directory}{suffix}")
-        return 0
-    if args.command == "render-sources":
-        render_sources(args.directory)
-        print(f"rewrote {args.directory / 'report.md'}")
-        return 0
-    if args.command == "add-source":
-        try:
+    try:
+        if args.command == "init":
+            directory = init_report(args)
+            return emit(args, True, {"directory": str(directory)}, str(directory))
+        if args.command == "validate":
+            warnings: list[str] = []
+            errors = validate_report(args.directory, warnings)
+            if args.strict:
+                errors = errors + [f"strict: {warning}" for warning in warnings]
+                warnings = []
+            if not args.json:
+                for warning in warnings:
+                    print(f"WARNING: {warning}", file=sys.stderr)
+            suffix = f" ({len(warnings)} warning(s))" if warnings else ""
+            return emit(args, not errors, {"directory": str(args.directory), "warnings": warnings}, f"OK: {args.directory}{suffix}", errors=errors)
+        if args.command == "render-sources":
+            render_sources(args.directory)
+            return emit(args, True, {"directory": str(args.directory)}, f"rewrote {args.directory / 'report.md'}")
+        if args.command == "add-source":
             source_id = add_source(args.directory, args.url, args.title, args.accessed)
-        except ValueError as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            return 1
-        print(json.dumps({"source_id": source_id}) if args.json else source_id)
-        return 0
-    if args.command == "add-quote":
-        try:
+            return emit(args, True, {"source_id": source_id}, str(source_id))
+        if args.command == "add-quote":
             add_quote(args.directory, args.source_id, args.text, args.from_file)
-        except (ValueError, OSError, UnicodeError) as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            return 1
-        print(json.dumps({"source_id": args.source_id}) if args.json else f"attached quote to source {args.source_id}")
-        return 0
-    if args.command == "add-evidence":
-        try:
+            return emit(args, True, {"source_id": args.source_id}, f"attached quote to source {args.source_id}")
+        if args.command == "add-evidence":
             evidence_id = add_evidence(args.directory, args.source_id, args.text, args.from_file, args.claims, args.location, args.captured_at)
-        except (ValueError, OSError, UnicodeError) as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            return 1
-        print(json.dumps({"evidence_id": evidence_id, "source_id": args.source_id}) if args.json else evidence_id)
-        return 0
-    if args.command == "supersede":
-        try:
+            return emit(args, True, {"evidence_id": evidence_id, "source_id": args.source_id}, evidence_id)
+        if args.command == "supersede":
             successor = supersede_report(args.predecessor, args.slug, args.title, args.cutoff, args.mode, args.domain)
-        except (ValueError, SystemExit) as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            return 1
-        print(json.dumps({"successor": str(successor)}) if args.json else successor)
-        return 0
-    if args.command == "resolve":
-        try:
+            return emit(args, True, {"successor": str(successor)}, str(successor))
+        if args.command == "resolve":
             resolve_hypothesis(args.directory, args.hypothesis_id, args.outcome, args.resolved_at, args.status)
-        except ValueError as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            return 1
-        print(json.dumps({"hypothesis": args.hypothesis_id, "status": args.status}) if args.json else f"{args.status}: {args.hypothesis_id}")
-        return 0
-    if args.command == "calibration":
-        rows = calibration_rows()
-        print(json.dumps(rows, indent=2) if args.json else calibration_text(rows), end="" if not args.json else "\n")
-        return 0
-    if args.command == "index":
-        path = REPORTS / "index.md"
-        expected = index_text()
-        if args.check:
-            orphan_errors = orphan_report_errors()
-            if orphan_errors:
-                for error in orphan_errors:
-                    print(f"ERROR: {error}", file=sys.stderr)
-                return 1
-            if not path.is_file():
-                print("ERROR: reports/index.md is missing; run reportctl.py index", file=sys.stderr)
-                return 1
-            if path.read_text(encoding="utf-8") != expected:
-                print("ERROR: reports/index.md is stale; run reportctl.py index", file=sys.stderr)
-                return 1
-            print("OK: reports/index.md")
+            return emit(args, True, {"hypothesis": args.hypothesis_id, "status": args.status}, f"{args.status}: {args.hypothesis_id}")
+        if args.command == "calibration":
+            rows = calibration_rows()
+            if args.json:
+                return emit(args, True, {"hypotheses": rows}, "")
+            print(calibration_text(rows), end="")
             return 0
-        path.write_text(expected, encoding="utf-8")
-        print(f"rewrote {path}")
-        return 0
-    if args.command == "scan-sensitive":
-        errors = sensitive_content_errors()
-        if errors:
-            for error in errors:
-                print(f"ERROR: {error}", file=sys.stderr)
-            return 1
-        print("OK: no high-confidence sensitive material found")
-        return 0
+        if args.command == "index":
+            path = REPORTS / "index.md"
+            expected = index_text()
+            if args.check:
+                errors = orphan_report_errors()
+                if not errors and not path.is_file():
+                    errors = ["reports/index.md is missing; run reportctl.py index"]
+                elif not errors and path.read_text(encoding="utf-8") != expected:
+                    errors = ["reports/index.md is stale; run reportctl.py index"]
+                return emit(args, not errors, {"path": str(path)}, "OK: reports/index.md", errors=errors)
+            path.write_text(expected, encoding="utf-8")
+            return emit(args, True, {"path": str(path)}, f"rewrote {path}")
+        if args.command == "scan-sensitive":
+            errors = sensitive_content_errors()
+            return emit(args, not errors, {}, "OK: no high-confidence sensitive material found", errors=errors)
+    except (ValueError, OSError, UnicodeError) as exc:
+        return emit(args, False, {}, "", errors=[str(exc)])
+    except SystemExit as exc:
+        # init_report raises SystemExit with a message for user errors.
+        message = str(exc.code) if exc.code not in (None, 0) else ""
+        if not message:
+            raise
+        return emit(args, False, {}, "", errors=[message.removeprefix("error: ")])
     return 2
 
 

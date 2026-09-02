@@ -2,6 +2,10 @@
 
 `assessment.json` is the machine-readable audit trail behind `report.md`.
 
+## Compatibility
+
+`schema_version` describes the **shape** of `assessment.json`. Validity is decided by the pinned framework release: newer releases add rules (temporal coherence, status/confidence guardrails, snippet limits, placeholder rejection) that older reports may fail. Consumers pin an exact framework tag; a report is "valid" relative to that tag. Rule additions that would fail previously valid reports ship as warnings first and become errors at the next minor version, which is recorded in `CHANGELOG.md`.
+
 ## Top-level fields
 
 - `schema_version`: currently `1`.
@@ -89,8 +93,10 @@ Evidence entries contain short public excerpts or artifact coordinates—not ful
 
 Each entry carries a `kind`:
 
-- `excerpt` (default when omitted): verbatim text from the source. The excerpt must match, after whitespace normalization, a `quotes[].text` entry recorded on the same source in `sources-ledger.json`. Those ledger quotes are written only by `reportctl.py add-quote --from-file` or `add-evidence`, both of which refuse text that is not found verbatim in the fetched source file. An unmatched excerpt is an advisory **warning** in schema 1 and becomes an error under `validate --strict` and in the next schema revision.
+- `excerpt` (default when omitted): verbatim text from the source. The excerpt must match, after whitespace normalization, a `quotes[].text` entry recorded on the same source in `sources-ledger.json`. The intended way to create those quotes is `reportctl.py add-evidence` (or `add-quote --from-file`), which refuses text not found verbatim in a caller-supplied text file. An unmatched excerpt is an advisory **warning** in schema 1 and becomes an error under `validate --strict` and in the next schema revision.
 - `artifact`: a coordinate for non-text evidence—figure, table cell, dataset row, commit hash, timestamp in a recording, or a specification-table value. Artifacts are exempt from the ledger-quote match but must still name a precise `location`.
+
+**What this establishes, honestly.** The validator proves *correspondence*: every excerpt has a ledger quote, and the ledger is the only place `add-evidence` writes. It does not prove that the quote was created by the command rather than by hand, that the supplied text file was fetched from the registered URL, or that an `artifact` label was deserved. Those remain analyst attestations, inspectable through Git history and the `evidence/` directory where fetched text should be kept. The framework makes fabrication *effortful and visible*, not impossible.
 
 An evidence source must also appear in every claim it supports. This prevents a quote from one source being attached to a claim whose declared source set says something else.
 

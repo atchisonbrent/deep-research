@@ -100,12 +100,12 @@ The validator can establish facts about the **research artifact**, such as:
 - a claim marked `confirmed` has either full direct evidence or two declared independence groups;
 - a single indirect evidence group cannot receive an implausibly narrow or greater-than-95% confidence range;
 - citations resolve and cover the prose/table units they are attached to;
-- excerpt evidence matches a quotation that was verified against fetched source text, or is declared a non-text artifact;
+- every excerpt corresponds to a ledger quotation, and the only command that writes ledger quotations refuses text absent from the supplied source file (correspondence is proven; file provenance is an analyst attestation kept inspectable under `evidence/`);
 - timestamps do not postdate the report cutoff, and claim status agrees with its confidence interval;
 - forecast reports contain hypotheses, ranges, alternatives, and update triggers;
 - source, report-lineage, review-state, and sensitive-content rules are satisfied.
 
-It cannot establish that a source is actually independent merely because an analyst labeled it so, that an excerpt entails the conclusion, or that a probability range is objectively correct. Those remain reviewable analytical judgments. The structured files make the judgments inspectable instead of hiding them in fluent prose.
+It cannot establish that a source is actually independent merely because an analyst labeled it so, that an excerpt entails the conclusion, that a supplied text file really came from the registered URL, that an `artifact` label was deserved, or that a probability range is objectively correct. Those remain reviewable analytical judgments. The structured files make the judgments inspectable instead of hiding them in fluent prose.
 
 ## Method
 

@@ -43,8 +43,8 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
             "never silently advance the old cutoff",
             "references/modes/readme.md",
             "the mode file is the contract, not a suggestion",
-            "add-evidence",
-            "validate --strict",
+            "add-evidence --help",
+            "validate --help | grep -q -- --strict",
             "$framework/methodology.md",
             "$framework/schema.md",
         )

@@ -156,7 +156,7 @@ class ReportCtlTests(unittest.TestCase):
             (target / "sources-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
             (target / "report.md").write_text(report)
             errors = reportctl.validate_report(target)
-            self.assertIn("evidence[0].source_id must be listed by supported claim C1", errors)
+            self.assertIn("evidence[0] (E1).source_id must be listed by supported claim C1", errors)
 
     def test_table_body_rows_are_part_of_citation_coverage(self) -> None:
         units = reportctl.prose_units("| Candidate | Metric | Basis |\n|---|---|---|\n| Alpha | 123 units | common basis [1] |")
@@ -359,7 +359,7 @@ class ReportCtlTests(unittest.TestCase):
             errors, _ = self.mutate_fixture(temporary, mutate)
         self.assertIn("sources[0].retrieved_at is after the report cutoff", errors)
         self.assertIn("claims[0].last_checked is after the report cutoff", errors)
-        self.assertIn("evidence[0].captured_at is after the report cutoff", errors)
+        self.assertIn("evidence[0] (E1).captured_at is after the report cutoff", errors)
 
     def test_publication_after_retrieval_is_rejected(self) -> None:
         def mutate(assessment, report):
@@ -369,6 +369,36 @@ class ReportCtlTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             errors, _ = self.mutate_fixture(temporary, mutate)
         self.assertIn("sources[0].published_at is after retrieved_at", errors)
+
+    def test_same_day_later_datetime_retrieval_is_rejected(self) -> None:
+        def mutate(assessment, report):
+            assessment["sources"][0]["retrieved_at"] = "2026-08-31T23:00:00Z"
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertIn("sources[0].retrieved_at is after the report cutoff", errors)
+
+    def test_offset_datetimes_compare_as_instants(self) -> None:
+        def mutate(assessment, report):
+            # 06:00-05:00 == 11:00Z, which is after the 10:49Z cutoff even though the local date is the same.
+            assessment["sources"][0]["retrieved_at"] = "2026-08-31T06:00:00-05:00"
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertIn("sources[0].retrieved_at is after the report cutoff", errors)
+
+    def test_date_only_cutoff_accepts_same_day_datetime(self) -> None:
+        def mutate(assessment, report):
+            assessment["report"]["cutoff"] = "2026-08-31"
+            assessment["report"]["created"] = "2026-08-31T10:49:00Z"
+            report = report.replace("cutoff: 2026-08-31T10:49:00Z", "cutoff: 2026-08-31").replace("**Cutoff:** 2026-08-31T10:49:00Z", "**Cutoff:** 2026-08-31")
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertEqual([], errors)
 
     def test_date_only_retrieval_on_cutoff_day_is_accepted(self) -> None:
         def mutate(assessment, report):
@@ -388,7 +418,32 @@ class ReportCtlTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             errors, _ = self.mutate_fixture(temporary, mutate)
-        self.assertIn("claims[0] load-bearing claim cannot rest on snippet-only sources", errors)
+        self.assertIn("load-bearing claim C1 cannot rest on snippet-only evidence; attach evidence from a full or partial source", errors)
+
+    def test_snippet_evidence_plus_unused_full_source_still_fails(self) -> None:
+        """Listing an irrelevant full source in source_ids must not launder snippet-only evidence."""
+        def mutate(assessment, report):
+            assessment["sources"][0]["access"] = "snippet"
+            assessment["sources"][0]["directness"] = "secondary"
+            second = dict(assessment["sources"][0])
+            second.update({"id": 2, "url": "https://example.org/full", "title": "Full source", "access": "full", "directness": "direct", "independence_group": "other"})
+            assessment["sources"].append(second)
+            assessment["claims"][0]["source_ids"] = [1, 2]
+            assessment["claims"][0]["confidence"] = [0.5, 0.75]
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            ledger = json.loads((target / "sources-ledger.json").read_text())
+            ledger["sources"].append({"id": 2, "url": "https://example.org/full", "title": "Full source", "accessed": "2026-08-31"})
+            (target / "sources-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+            assessment = json.loads((target / "assessment.json").read_text())
+            report = (target / "report.md").read_text()
+            assessment, report = mutate(assessment, report)
+            (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
+            (target / "report.md").write_text(report)
+            errors = reportctl.validate_report(target)
+        self.assertTrue(any("cannot rest on snippet-only evidence" in e for e in errors), errors)
 
     def test_status_and_confidence_must_cohere(self) -> None:
         def confirmed_low(assessment, report):
@@ -408,16 +463,155 @@ class ReportCtlTests(unittest.TestCase):
             errors, _ = self.mutate_fixture(temporary, unsupported_high)
             self.assertTrue(any("status 'unsupported' requires confidence high <= 0.50" in error for error in errors))
 
+    def test_unknown_width_rule_dispatches_on_status_and_tolerates_float_widths(self) -> None:
+        def status_unknown_narrow(assessment, report):
+            assessment["claims"][0]["status"] = "unknown"
+            assessment["claims"][0]["confidence"] = [0.4, 0.6]
+            return assessment, report
+
+        def status_unknown_exact_width(assessment, report):
+            assessment["claims"][0]["status"] = "unknown"
+            assessment["claims"][0]["confidence"] = [0.4, 0.7]
+            return assessment, report
+
+        def kind_unknown_probable(assessment, report):
+            assessment["claims"][0]["kind"] = "unknown"
+            assessment["claims"][0]["importance"] = "context"
+            assessment["claims"][0]["confidence"] = [0.55, 0.65]
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, status_unknown_narrow)
+            self.assertTrue(any("status 'unknown' must carry a wide confidence interval" in e for e in errors))
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, status_unknown_exact_width)
+            self.assertFalse(any("wide confidence interval" in e for e in errors), errors)
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, kind_unknown_probable)
+            self.assertFalse(any("wide confidence interval" in e for e in errors), errors)
+
+    def test_quoted_frontmatter_title_matches_plain_assessment_title(self) -> None:
+        def mutate(assessment, report):
+            assessment["report"]["title"] = "Minimal: report #1"
+            return assessment, report.replace("title: Minimal report", 'title: "Minimal: report #1"')
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertEqual([], errors)
+
+    def test_init_quotes_titles_yaml_would_misread(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            reports = Path(temporary) / "reports"
+            with mock.patch.object(reportctl, "REPORTS", reports):
+                directory = reportctl.init_report(Namespace(slug="colon", title="Iran: six months", cutoff="2026-08-31T10:49:00Z", mode="general", domain="testing"))
+            self.assertIn('title: "Iran: six months"', (directory / "report.md").read_text())
+
+    def test_sentence_final_abbreviation_still_ends_a_sentence(self) -> None:
+        unit = "The supplier was Acme Inc. It filed the notice.[1] A rival disagreed.[2]"
+        self.assertEqual(
+            ["The supplier was Acme Inc.", "It filed the notice.[1]", "A rival disagreed.[2]"],
+            reportctl.split_cited_sentences(unit),
+        )
+        self.assertFalse(reportctl.citation_scope_valid(unit))
+        internal = "Acme Inc. filed in the U.S. on Jan. 5, 2026.[1] Dr. Smith objected.[2]"
+        self.assertEqual(["Acme Inc. filed in the U.S. on Jan. 5, 2026.[1]", "Dr. Smith objected.[2]"], reportctl.split_cited_sentences(internal))
+
+    def test_month_abbreviation_before_citation_ends_sentence(self) -> None:
+        unit = "Traffic rose in Jan.[1] It fell in Feb.[2] It flattened in Mar.[3] It rebounded in Apr.[4]"
+        sentences = reportctl.split_cited_sentences(unit)
+        self.assertEqual(4, len(sentences))
+        self.assertTrue(reportctl.citation_scope_valid(unit))
+        self.assertFalse(any(len(reportctl.CITE_RE.findall(s)) > 3 for s in sentences))
+        uncited_tail = "Cats sleep here.[1] They nap etc. Dogs bark in the U.S. More analysis suggests the month is Dec.[2]"
+        self.assertFalse(reportctl.citation_scope_valid(uncited_tail))
+
+    def test_tables_without_outer_pipes_are_row_units(self) -> None:
+        markdown = "Candidate | Metric | Basis\n--- | --- | ---\nAlpha | 123 units | common basis [1]\nBeta | 456 units | common basis\n"
+        units = reportctl.prose_units(markdown)
+        self.assertEqual(2, len(units))
+        self.assertTrue(reportctl.citation_scope_valid(units[0]))
+        self.assertFalse(reportctl.citation_scope_valid(units[1]))
+
+    def test_lazy_list_continuation_is_one_unit(self) -> None:
+        markdown = "- The first list item begins here and\ncontinues without indentation on the next line.[1]\n\nA separate paragraph with enough words follows.\n"
+        units = reportctl.prose_units(markdown)
+        self.assertEqual(2, len(units))
+        self.assertTrue(reportctl.citation_scope_valid(units[0]))
+        self.assertFalse(reportctl.citation_scope_valid(units[1]))
+
+    def test_malformed_quotes_produce_errors_not_tracebacks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            ledger = json.loads((target / "sources-ledger.json").read_text())
+            ledger["sources"][0]["quotes"] = None
+            (target / "sources-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+            warnings: list[str] = []
+            errors = reportctl.validate_report(target, warnings)
+            self.assertEqual([], errors)
+            self.assertEqual(1, len(warnings))
+            ledger["sources"][0]["quotes"] = "not a list"
+            (target / "sources-ledger.json").write_text(json.dumps(ledger, indent=2) + "\n")
+            errors = reportctl.validate_report(target, [])
+            self.assertIn("sources-ledger.sources[0].quotes must be a list when present", errors)
+
+    def test_add_evidence_preflights_before_any_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            before_ledger = (target / "sources-ledger.json").read_bytes()
+            before_assessment = (target / "assessment.json").read_bytes()
+            fetched = Path(temporary) / "fetched.txt"
+            fetched.write_text("The record states that the event occurred on schedule.\n")
+            with self.assertRaisesRegex(ValueError, "after the report cutoff"):
+                reportctl.add_evidence(target, 1, "The record states that the event occurred on schedule.", fetched, ["C1"], "record body", "2027-01-01T00:00:00Z")
+            with self.assertRaisesRegex(ValueError, "unknown claim id"):
+                reportctl.add_evidence(target, 1, "The record states that the event occurred on schedule.", fetched, ["C9"], "record body", "2026-08-31T10:00:00Z")
+            self.assertEqual(before_ledger, (target / "sources-ledger.json").read_bytes())
+            self.assertEqual(before_assessment, (target / "assessment.json").read_bytes())
+
+    def test_add_evidence_does_not_merge_into_artifact_records(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            assessment = json.loads((target / "assessment.json").read_text())
+            assessment["evidence"][0]["kind"] = "artifact"
+            (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
+            fetched = Path(temporary) / "fetched.txt"
+            fetched.write_text("The event occurred.\n")
+            evidence_id = reportctl.add_evidence(target, 1, "The event occurred.", fetched, ["C1"], "record body", "2026-08-31T10:00:00Z")
+            self.assertEqual("E2", evidence_id)
+
+    def test_json_mode_reports_errors_as_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result = subprocess.run(
+                [sys.executable, str(ROOT / "tools" / "reportctl.py"), "--root", temporary, "--json", "add-source", temporary, "not-a-url", "--title", "x", "--accessed", "2026-08-31"],
+                text=True, capture_output=True,
+            )
+        self.assertEqual(1, result.returncode)
+        self.assertEqual("", result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertEqual("add-source", payload["command"])
+        self.assertTrue(payload["errors"])
+
     def test_init_placeholders_are_rejected(self) -> None:
         def mutate(assessment, report):
-            assessment["report"]["summary"] = "Replace with the decision-grade verdict."
-            report = report.replace("## Uncertainty", "## Competing hypotheses\n\nReplace with calibrated ranges and update triggers.[unverified]\n\n## Uncertainty")
+            assessment["report"]["summary"] = f"{reportctl.PLACEHOLDER_PREFIX}the decision-grade verdict."
+            report = report.replace("## Uncertainty", f"## Competing hypotheses\n\n{reportctl.PLACEHOLDER_PREFIX}calibrated ranges and update triggers.[unverified]\n\n## Uncertainty")
             return assessment, report
 
         with tempfile.TemporaryDirectory() as temporary:
             errors, _ = self.mutate_fixture(temporary, mutate)
         self.assertIn("report.summary still contains the init placeholder", errors)
         self.assertIn("report.md still contains init placeholder text", errors)
+
+    def test_ordinary_prose_saying_replace_with_is_not_a_placeholder(self) -> None:
+        def mutate(assessment, report):
+            assessment["report"]["summary"] = "Replace with a stronger seal before testing; the event probably occurred."
+            report = report.replace("## Uncertainty", "## Recommendation\n\nReplace with a stronger seal before the next test cycle.[1]\n\n## Uncertainty")
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertEqual([], errors)
 
     def test_frontmatter_title_must_match_assessment(self) -> None:
         def mutate(assessment, report):
@@ -445,7 +639,7 @@ class ReportCtlTests(unittest.TestCase):
             errors, warnings = self.mutate_fixture(temporary, mutate)
         self.assertEqual([], errors)
         self.assertEqual(1, len(warnings))
-        self.assertIn("evidence[0].excerpt has no verified ledger quote", warnings[0])
+        self.assertIn("evidence[0] (E1).excerpt has no matching ledger quote", warnings[0])
 
     def test_artifact_evidence_does_not_require_a_ledger_quote(self) -> None:
         def mutate(assessment, report):
@@ -471,7 +665,7 @@ class ReportCtlTests(unittest.TestCase):
         self.assertEqual(1, strict.returncode)
         payload = json.loads(strict.stdout)
         self.assertFalse(payload["ok"])
-        self.assertTrue(any(error.startswith("strict: evidence[0].excerpt") for error in payload["errors"]))
+        self.assertTrue(any(error.startswith("strict: evidence[0] (E1).excerpt") for error in payload["errors"]), payload["errors"])
 
     def test_add_evidence_verifies_records_and_links_in_one_step(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -507,16 +701,35 @@ class ReportCtlTests(unittest.TestCase):
     def test_sensitive_scan_catches_common_api_key_shapes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            # Synthetic high-entropy bodies are assembled at runtime so the
+            # repository's own scan-sensitive never sees a credential-shaped literal.
+            body = "".join(chr(ord("A") + (i * 7) % 26) + str(i % 10) for i in range(24))  # 48 chars, mixed
             (root / "notes.md").write_text(
-                "openai sk-proj-" + "a" * 40 + "\n"
-                "slack xoxb-1234567890-" + "b" * 24 + "\n"
-                "google AIza" + "C" * 35 + "\n"
-                "-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\n"
+                f"openai sk-proj-{body[:40]}\n"
+                f"slack xoxb-1234567890-{body[:24]}\n"
+                f"google AIzaSy{body[:33]}\n"
+                "-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\n" + f"lQOYBGR{body[:40]}\n"
             )
             with mock.patch.object(reportctl, "ROOT", root):
                 findings = reportctl.sensitive_content_errors()
         labels = {finding.split(" in ")[0] for finding in findings}
         self.assertEqual({"possible OpenAI-style key", "possible Slack token", "possible Google API key", "possible private key"}, labels)
+
+    def test_sensitive_scan_ignores_dummy_values_bare_headers_and_allowlisted_examples(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            import base64
+            segment = lambda payload: base64.urlsafe_b64encode(payload).rstrip(b"=").decode()
+            public_jwt = ".".join((segment(b'{"alg":"HS256","typ":"JWT"}'), segment(b'{"sub":"1234567890","name":"Example"}'), segment(bytes(range(40)))))
+            (root / "notes.md").write_text(
+                "dummy sk-proj-" + "a" * 40 + "\n"
+                "the header -----BEGIN PGP " + "PRIVATE KEY BLOCK----- marks the start of an armored key\n"
+                f"RFC example token {public_jwt}\n"
+            )
+            (root / reportctl.SENSITIVE_ALLOWLIST_FILE).write_text(f"# reviewed public examples\n{public_jwt}\n")
+            with mock.patch.object(reportctl, "ROOT", root):
+                findings = reportctl.sensitive_content_errors()
+        self.assertEqual([], findings)
 
     def test_json_output_for_validate(self) -> None:
         fixture = ROOT / "tests" / "fixtures" / "minimal-report"

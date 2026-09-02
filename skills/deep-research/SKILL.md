@@ -44,7 +44,8 @@ else
 fi
 TOOL="$FRAMEWORK/tools/reportctl.py"
 test -f "$TOOL"
-python3 "$TOOL" --help
+python3 "$TOOL" add-evidence --help >/dev/null || { echo "pinned framework predates add-evidence; update the vault's framework pin" >&2; exit 1; }
+python3 "$TOOL" validate --help | grep -q -- --strict || { echo "pinned framework predates validate --strict" >&2; exit 1; }
 ```
 
 Require `$FRAMEWORK/METHODOLOGY.md`, `$FRAMEWORK/SCHEMA.md`, `$FRAMEWORK/docs/QUICKSTART.md`, and `$FRAMEWORK/tools/reportctl.py`. The required CLI contract is public and standard-library-only: global `--root <vault>` (and optional `--json`) before the subcommand; `init`; `add-source`; `add-quote --from-file`; `add-evidence`; `render-sources`; `validate [--strict]`; `index`; `scan-sensitive`; `supersede`; `resolve`; and `calibration`. If the framework or CLI contract is unavailable, stop before producing a supposedly durable report; do not hand-build substitute IDs or a Sources block.
@@ -161,7 +162,7 @@ Populate the schema-defined `claims` and `evidence` in `assessment.json`; valida
 - set `last_checked` to the real retrieval time, never later than the cutoff;
 - preserve scope, date, denominator, and attribution for numbers.
 
-Use `reportctl.py add-evidence --from-file` for every excerpt: it verifies case-sensitive wording with whitespace normalization against the fetched text, records the quote in the ledger, and appends the claim-facing evidence record in one step, so the validator can prove the excerpt was checked. Use `add-quote --from-file` only when the evidence entry already exists. For non-text evidence—a figure, table cell, dataset row, or commit—write the evidence entry with `"kind": "artifact"` and a precise `location`. An `excerpt` without a verified ledger quote is a validation warning today and an error under `--strict`; never paste a snippet, paraphrase into the quote field, or store full copyrighted articles in Git.
+Use `reportctl.py add-evidence --from-file` for every excerpt: it verifies case-sensitive wording with whitespace normalization against the fetched text, records the quote in the ledger, and appends the claim-facing evidence record in one step, so the validator can confirm the excerpt corresponds to a checked quotation. Keep the fetched text file under the report's `evidence/` directory; the command proves the quote is in that file, and Git history shows where the file came from. Use `add-quote --from-file` only when the evidence entry already exists. For non-text evidence—a figure, table cell, dataset row, or commit—write the evidence entry with `"kind": "artifact"` and a precise `location`. An `excerpt` without a verified ledger quote is a validation warning today and an error under `--strict`; never paste a snippet, paraphrase into the quote field, or store full copyrighted articles in Git.
 
 Completion: the validator can trace every load-bearing factual claim to a source and verified excerpt or artifact coordinate.
 
