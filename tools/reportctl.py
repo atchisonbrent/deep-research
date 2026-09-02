@@ -649,6 +649,9 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
             require(errors, isinstance(claim.get(key), list), f"{where}.{key} must be a list")
             if not isinstance(claim.get(key), list):
                 claim[key] = []
+            elif key != "falsifiers":
+                require(errors, all(isinstance(c, int) and not isinstance(c, bool) for c in claim[key]), f"{where}.{key} entries must be integer source ids")
+                claim[key] = [c for c in claim[key] if isinstance(c, int) and not isinstance(c, bool)]
         require(errors, text(claim.get("rationale")), f"{where}.rationale must be non-empty")
         require(errors, valid_datetime(claim.get("last_checked")), f"{where}.last_checked must be ISO-8601")
         if cutoff_dt:
@@ -718,6 +721,7 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         supports = item.get("supports_claim_ids")
         require(errors, isinstance(supports, list) and bool(supports), f"{where}.supports_claim_ids must be non-empty")
         if isinstance(supports, list):
+            require(errors, all(isinstance(c, str) for c in supports), f"{where}.supports_claim_ids entries must be claim id strings")
             supports = [c for c in supports if isinstance(c, str)]
             evidence_source = source_by_id.get(item.get("source_id")) if isinstance(item.get("source_id"), int) else None
             for claim_id in supports:
@@ -768,6 +772,7 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         basis = hypothesis.get("basis_claim_ids")
         require(errors, isinstance(basis, list) and bool(basis), f"{where}.basis_claim_ids must be non-empty")
         if isinstance(basis, list):
+            require(errors, all(isinstance(c, str) for c in basis), f"{where}.basis_claim_ids entries must be claim id strings")
             for claim_id in [c for c in basis if isinstance(c, str)]:
                 require(errors, claim_id in claim_by_id, f"{where} references unknown claim {claim_id}")
         alternatives = hypothesis.get("alternatives")
@@ -784,6 +789,8 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
             if resolution.get("status") in {"resolved", "superseded"}:
                 require(errors, text(resolution.get("outcome")), f"{where} {resolution.get('status')} hypothesis requires an outcome")
                 require(errors, parse_temporal(resolution.get("resolved_at")) is not None, f"{where} {resolution.get('status')} hypothesis requires resolved_at")
+                if parse_temporal(resolution.get("resolved_at")) is not None and cutoff_dt:
+                    require(errors, not_after(report.get("cutoff"), resolution.get("resolved_at")), f"{where}.resolution.resolved_at must not precede report.cutoff")
             else:
                 require(errors, resolution.get("resolved_at") is None, f"{where} open hypothesis resolved_at must be null")
 
@@ -1105,7 +1112,7 @@ def init_report(args: argparse.Namespace) -> Path:
         },
     }
     write_json(directory / "assessment.json", assessment)
-    (directory / "sources-ledger.json").write_text('{\n  "version": 1,\n  "sources": []\n}\n', encoding="utf-8")
+    write_json(directory / "sources-ledger.json", {"version": 1, "sources": []})
     sections = "\n\n".join(
         f"## {heading}\n\n{PLACEHOLDER_PREFIX}the {heading.lower()} content for this {args.mode} report.[unverified]"
         for heading in MODE_SECTIONS[args.mode]
@@ -1130,7 +1137,7 @@ assessment: assessment.json
 
 ## Sources
 """
-    (directory / "report.md").write_text(report, encoding="utf-8")
+    write_text_atomic(directory / "report.md", report)
     return directory
 
 
@@ -1198,9 +1205,9 @@ def supersede_report(predecessor: Path, slug: str, title: str, cutoff: str, mode
         mode=mode or pred_report.get("mode", "general"),
         domain=domain or pred_report.get("domain", "general"),
     )
-    created: Path | None = None
+    created = successor
     try:
-        created = init_report(args)
+        init_report(args)
         succ_assessment_path = created / "assessment.json"
         succ_assessment = load_json(succ_assessment_path)
         succ_assessment["report"]["lineage"]["supersedes"] = str(pred_rel)
@@ -1214,7 +1221,7 @@ def supersede_report(predecessor: Path, slug: str, title: str, cutoff: str, mode
             pred_assessment_path.write_bytes(pred_assessment_bytes)
             pred_markdown_path.write_bytes(pred_markdown_bytes)
         finally:
-            if created is not None and created.exists():
+            if created.exists():
                 shutil.rmtree(created, ignore_errors=True)
         raise
     return created
@@ -1244,6 +1251,9 @@ def resolve_hypothesis(directory: Path, hypothesis_id: str, outcome: str, resolv
     resolution = hypothesis.get("resolution") or {}
     if resolution.get("status") != "open":
         raise ValueError(f"hypothesis {hypothesis_id} is already {resolution.get('status')}")
+    report_cutoff = (assessment.get("report") or {}).get("cutoff") if isinstance(assessment.get("report"), dict) else None
+    if parse_temporal(report_cutoff) is not None and not not_after(report_cutoff, resolved_at):
+        raise ValueError("--at must not precede the report cutoff; a hypothesis cannot be scored before it was made")
     hypothesis["resolution"] = {"status": status, "outcome": outcome, "resolved_at": resolved_at}
     if status == "resolved":
         lowered = outcome.strip().lower()

@@ -979,6 +979,77 @@ class ReportCtlTests(unittest.TestCase):
                 directory = reportctl.init_report(Namespace(slug="num", title="2026-08-31", cutoff="2026-08-31T10:49:00Z", mode="general", domain="testing"))
             self.assertIn('title: "2026-08-31"', (directory / "report.md").read_text())
 
+    def test_non_string_claim_references_are_errors_not_silently_dropped(self) -> None:
+        def mutate(assessment, report):
+            assessment["evidence"][0]["supports_claim_ids"] = ["C1", 7]
+            assessment["hypotheses"][0]["basis_claim_ids"] = [7]
+            assessment["claims"][0]["source_ids"] = [1, "1"]
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertTrue(any("supports_claim_ids entries must be claim id strings" in e for e in errors), errors)
+        self.assertTrue(any("basis_claim_ids entries must be claim id strings" in e for e in errors), errors)
+        self.assertTrue(any("source_ids entries must be integer source ids" in e for e in errors), errors)
+
+    def test_json_validate_reports_non_string_references_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            assessment = json.loads((target / "assessment.json").read_text())
+            assessment["hypotheses"][0]["basis_claim_ids"] = [7, None]
+            assessment["evidence"][0]["supports_claim_ids"] = [3]
+            (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
+            result = subprocess.run([sys.executable, str(ROOT / "tools" / "reportctl.py"), "--json", "validate", str(target)], text=True, capture_output=True)
+        self.assertEqual("", result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(any("entries must be claim id strings" in e for e in payload["errors"]), payload)
+
+    def test_supersede_removes_successor_when_any_creation_stage_fails(self) -> None:
+        stages = [
+            ("write_json", 1),   # successor assessment write inside init_report
+            ("write_json", 2),   # successor ledger write inside init_report
+            ("write_text_atomic", 1),  # successor report.md inside init_report
+            ("write_json", 3),   # successor assessment rewrite with lineage
+        ]
+        for name, failing_call in stages:
+            with self.subTest(stage=(name, failing_call)), tempfile.TemporaryDirectory() as temporary:
+                root, predecessor = self.make_vault_with_fixture(temporary)
+                before = {p.name: p.read_bytes() for p in predecessor.iterdir() if p.is_file()}
+                original = getattr(reportctl, name)
+                calls = {"n": 0}
+
+                def flaky(*args, **kwargs):
+                    calls["n"] += 1
+                    if calls["n"] == failing_call:
+                        raise OSError("disk full")
+                    return original(*args, **kwargs)
+
+                with mock.patch.object(reportctl, "ROOT", root), mock.patch.object(reportctl, "REPORTS", root / "reports"):
+                    with mock.patch.object(reportctl, name, side_effect=flaky):
+                        with self.assertRaisesRegex(OSError, "disk full"):
+                            reportctl.supersede_report(predecessor, "later", "Later", "2026-09-15T00:00:00Z")
+                self.assertEqual(before, {p.name: p.read_bytes() for p in predecessor.iterdir() if p.is_file()})
+                self.assertFalse((root / "reports" / "2026" / "09" / "later").exists(), f"successor left behind at stage {name}#{failing_call}")
+
+    def test_resolution_cannot_precede_report_cutoff(self) -> None:
+        def mutate(assessment, report):
+            assessment["hypotheses"][0]["resolution"] = {"status": "resolved", "outcome": "true", "resolved_at": "2026-08-30T00:00:00Z", "outcome_value": 1}
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertTrue(any("resolved_at must not precede report.cutoff" in e for e in errors), errors)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            hypothesis_id = json.loads((target / "assessment.json").read_text())["hypotheses"][0]["id"]
+            with self.assertRaisesRegex(ValueError, "must not precede the report cutoff"):
+                reportctl.resolve_hypothesis(target, hypothesis_id, "true", "2026-08-30")
+            # Same calendar day as a date-only value is allowed; a later instant is allowed.
+            reportctl.resolve_hypothesis(target, hypothesis_id, "true", "2026-08-31")
+            self.assertEqual([], reportctl.validate_report(target))
+
 
 if __name__ == "__main__":
     unittest.main()
