@@ -109,9 +109,20 @@ Turn slogans and broad narratives into atomic candidate claims. Separate:
 
 For causal, intentional, strategic, or forecast questions, write the leading hypothesis, strongest credible alternative, mixed explanation where appropriate, and insufficient-evidence possibility before deciding which is true. For descriptive landscapes and comparisons, use an explicit criteria matrix instead; do not manufacture dramatic hypotheses because the schema permits them.
 
+Build every criteria matrix symmetrically. A criterion is load-bearing when a material change in it could change a gate outcome or verdict; list those criteria explicitly. For every retained candidate and load-bearing criterion, record exactly one of:
+
+1. a value on the common unit, scope, and measurement basis;
+2. a value normalized to that basis with the conversion or bounding rationale visible;
+3. `N/A` with a reason the criterion does not apply; or
+4. an unresolved comparison gap.
+
+Never rank a measured value against silence. Record each unresolved cell in `assessment.json.coverage_gaps`, naming the candidate and criterion. If unresolved gaps dominate the load-bearing criteria, report **insufficient evidence to rank** and list the gated candidates and missing evidence instead of manufacturing a winner.
+
+When an available measurement is only a proxy for the user's target concern, display the proxy and explain what it omits, but give it ranking weight only when every retained candidate has a proxy on one shared, mutually comparable basis—the same observable condition or a commonly normalized proxy. Otherwise treat the proxy-only cells as unresolved for ranking. A conservative lower bound may carry ranking weight only when its basis is condition-independent or demonstrably dominates the common condition; otherwise it is a gap. An `N/A` cell on a load-bearing criterion carries no ranking weight and means that criterion does not differentiate the candidate; if the criterion is a hard requirement, treat `N/A` as a re-check signal rather than a pass. If unresolved gaps in total dominate the load-bearing criteria, report **insufficient evidence to rank** and list the retained candidates and missing evidence. Include deltas from a declared baseline when they make material differences legible.
+
 For transactional comparisons, load `product-buying-research` when available; it owns exact option, seller/provider, availability, checkout, and delivered-cost collection. Import that bounded transaction evidence into the durable report while deep research owns the eligibility gate and synthesis. Normalize dates or quantity, required protection or service tier, taxes, delivery or pickup, mandatory fees, essential extras, refundability, included usage, and foreseeable operating costs. A listed price can be registered with its scope, but it cannot support a load-bearing ranking until the common transaction basis is established. Never rank a pre-tax teaser against an all-in protected total. Stop before personal data, payment, terms acceptance, or any transaction commit.
 
-Completion: initial claim IDs plus either hypothesis IDs or a criteria matrix exist in `assessment.json` before synthesis.
+Completion: initial claim IDs plus either hypotheses or a criteria matrix exist before synthesis; matrices live in `report.md`, and every unresolved cell has a named `coverage_gaps` entry.
 
 ### 3. Build a deliberately diverse source map
 
@@ -263,6 +274,7 @@ Completion: local and remote branches match, CI is green, and the report is brow
 - **Claims have different half-lives.** Preserve cutoff, label volatile prices, roadmaps, benchmarks, and market inputs, and create dated updates.
 - **A requirement change invalidates more than one sentence.** Re-run eligibility, workload fit, totals, and ranking instead of appending a caveat to a stale verdict; preserve cutoff and lineage rules.
 - **Advertised capacity is not workload fit.** Test all simultaneous people, cargo, compatibility, operating, and comfort constraints that matter to the decision.
+- **A shared table can still be asymmetric.** Every load-bearing candidate/criterion cell needs a comparable value, declared normalization, justified N/A, or named unresolved gap; proxy-only cells are not secretly evidence.
 - **Headline prices are not comparable totals.** Normalize transaction stage, required tiers, fees, taxes, logistics, refundability, and essential extras.
 - **Catalog identity can be wrong.** Verify consequential model, trim, provider, and configuration claims against primary identifiers or preserve the contradiction as unresolved.
 - **Private Git is not a secret dump.** Store short excerpts and public artifacts, not credentials, leaked secrets, or full copyrighted articles.
@@ -271,6 +283,9 @@ Completion: local and remote branches match, CI is green, and the report is brow
 
 - [ ] UTC cutoff, research mode, domain, questions, intended use, and volatile inputs are explicit
 - [ ] Volatile comparative work records hard constraints, soft preferences, simultaneous workload, and minimum acceptable outcomes in `report.md`
+- [ ] Every retained candidate/load-bearing-criterion cell has a common-basis value, declared normalization, justified N/A, or named unresolved gap
+- [ ] Every unresolved matrix cell has a candidate-and-criterion entry in `assessment.json.coverage_gaps`
+- [ ] Proxy measurements name the target concern and limitations and carry weight only on a common comparable basis; material deltas use a declared baseline
 - [ ] Transactional comparisons use `product-buying-research` when available and share one decision-grade cost basis
 - [ ] Consequential comparative-option identities are verified, conservatively bounded, or excluded
 - [ ] Prior report and methodology were read

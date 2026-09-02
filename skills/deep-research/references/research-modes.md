@@ -74,6 +74,8 @@ Freeze the comparison class and criteria before retrieval. Separate hard eligibi
 
 Write the eligibility gate, criteria matrix, and normalized cost table in `report.md`. Map their factual premises and conclusions into schema-defined claims, evidence, and coverage gaps; do not invent assessment fields. If no option passes every hard gate, output **no viable candidate within the comparison class**.
 
+The matrix must be rectangular in substance, not merely appearance. For every retained option and load-bearing criterion, record a common-basis value, a visibly normalized value, a justified `N/A`, or an unresolved gap. Record unresolved cells in `assessment.json.coverage_gaps` with candidate and criterion named, for example `"candidate X / criterion 'price basis' — no delivered-cost data at cutoff"`. Never rank a value against silence; if unresolved cells total more than half of load-bearing criteria, report **insufficient evidence to rank** and list the retained candidates and missing evidence. A proxy may be displayed with its limits named, but it carries ranking weight only when every retained option has a proxy on one shared, mutually comparable basis. An `N/A` cell carries no ranking weight and, on a hard requirement, is a re-check signal rather than a pass. Include deltas from a declared baseline when useful.
+
 For live or transactional options:
 
 1. Load `product-buying-research` when available; it owns exact-option, seller/provider, availability, checkout, and delivered-cost collection. Deep research imports that evidence and owns durable gating and synthesis.

@@ -42,6 +42,11 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
             "never rank a pre-tax teaser against an all-in protected total",
             "exclude an option when unresolved identity",
             "never silently advance the old cutoff",
+            "never rank a measured value against silence",
+            "proxy-only cells are not secretly evidence",
+            "insufficient evidence to rank",
+            "a shared table can still be asymmetric",
+            "common-basis value, declared normalization, justified n/a, or named unresolved gap",
             "$framework/methodology.md",
             "$framework/schema.md",
         )
@@ -74,6 +79,16 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
         comparative = modes.split("## comparative analysis", 1)[1].split("## product landscape", 1)[0]
         self.assertIn("product-buying-research", comparative)
         self.assertIn("no viable candidate within the comparison class", comparative)
+        for rule_class in (
+            "common-basis value",
+            "justified `n/a`",
+            "unresolved gap",
+            "assessment.json.coverage_gaps",
+            "insufficient evidence to rank",
+            "one shared, mutually comparable basis",
+            "declared baseline",
+        ):
+            self.assertIn(rule_class, comparative)
         self.assertIn("lineage.supersedes", comparative)
         self.assertIn("lineage.superseded_by", comparative)
         self.assertNotIn("mark the old verdict superseded", SKILL.read_text(encoding="utf-8").lower())
