@@ -8,6 +8,12 @@ All notable changes to this project are documented here. This project follows [S
 
 
 
+
+## [0.1.7] - 2026-09-02
+
+### Bug Fixes
+
+- list retained candidates in insufficient-evidence report
 ## [0.1.6] - 2026-09-02
 
 ### Features
@@ -55,3 +61,4 @@ All notable changes to this project are documented here. This project follows [S
 [0.1.4]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.4
 [0.1.5]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.5
 [0.1.6]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.6
+[0.1.7]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.7
