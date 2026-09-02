@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import tempfile
 import unittest
 import shutil
@@ -273,10 +274,44 @@ class ReportCtlTests(unittest.TestCase):
             (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
             report = (target / "report.md").read_text().replace("mode: general", "mode: release-forecast").replace("domain: testing", "domain: artificial-intelligence")
             (target / "report.md").write_text(report)
-            self.assertIn(
-                "release forecasts and forecast claims require at least one hypothesis",
-                reportctl.validate_report(target),
-            )
+            self.assertTrue(any("require at least one hypothesis" in error for error in reportctl.validate_report(target)))
+
+    def test_event_assessment_requires_hypotheses(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            assessment = json.loads((target / "assessment.json").read_text())
+            assessment["report"]["mode"] = "event-assessment"
+            assessment["hypotheses"] = []
+            (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
+            report = (target / "report.md").read_text().replace("mode: general", "mode: event-assessment")
+            (target / "report.md").write_text(report)
+            self.assertTrue(any("require at least one hypothesis" in error for error in reportctl.validate_report(target)))
+
+    def test_new_modes_are_accepted_and_scaffold_their_sections(self) -> None:
+        for mode in ("historical-analysis", "state-of-practice", "entity-background", "legal-regulatory", "security-incident"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                reports = Path(temporary) / "reports"
+                with mock.patch.object(reportctl, "REPORTS", reports):
+                    directory = reportctl.init_report(Namespace(slug="scaffold", title="Scaffold", cutoff="2026-08-31T10:49:00Z", mode=mode, domain="testing"))
+                report = (directory / "report.md").read_text()
+                for heading in reportctl.MODE_SECTIONS[mode]:
+                    self.assertIn(f"## {heading}", report)
+                self.assertIn(f"mode: {mode}", report)
+                self.assertTrue(report.rstrip().endswith("## Sources"))
+
+    def test_every_mode_has_a_reference_file_and_matching_sections(self) -> None:
+        modes_dir = ROOT / "skills" / "deep-research" / "references" / "modes"
+        for mode in sorted(reportctl.RESEARCH_MODES):
+            with self.subTest(mode=mode):
+                reference = modes_dir / f"{mode}.md"
+                self.assertTrue(reference.is_file(), reference)
+                text = reference.read_text(encoding="utf-8")
+                for heading in ("## Choose this mode when", "## Evidence hierarchy", "## Decomposition pattern", "## Mode gates", "## Output sections", "## Completion criteria", "## Pitfalls"):
+                    self.assertIn(heading, text)
+                output_block = text.split("## Output sections", 1)[1].split("## Completion criteria", 1)[0]
+                listed = [line[2:].strip() for line in output_block.splitlines() if line.startswith("- ")]
+                listed = [re.sub(r"\s*\(.*\)$", "", item) for item in listed]
+                self.assertEqual(reportctl.MODE_SECTIONS[mode], listed, f"{mode}: reportctl MODE_SECTIONS and reference Output sections have drifted")
 
     def test_forecast_claim_requires_hypotheses_in_general_mode(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -285,10 +320,7 @@ class ReportCtlTests(unittest.TestCase):
             assessment["claims"][0]["kind"] = "forecast"
             assessment["hypotheses"] = []
             (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
-            self.assertIn(
-                "release forecasts and forecast claims require at least one hypothesis",
-                reportctl.validate_report(target),
-            )
+            self.assertTrue(any("require at least one hypothesis" in error for error in reportctl.validate_report(target)))
 
     def test_generic_source_types_are_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

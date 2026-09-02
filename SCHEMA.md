@@ -25,7 +25,9 @@ Scaffold placeholders from `init` (`Replace with …`) are rejected wherever the
 
 ### Research mode
 
-`general`, `event-assessment`, `technology-landscape`, `market-analysis`, `company-research`, `release-forecast`, `policy-analysis`, `scientific-synthesis`, `comparative-analysis`, `product-landscape`, `due-diligence`
+`general`, `event-assessment`, `historical-analysis`, `technology-landscape`, `state-of-practice`, `market-analysis`, `company-research`, `entity-background`, `release-forecast`, `policy-analysis`, `legal-regulatory`, `scientific-synthesis`, `security-incident`, `comparative-analysis`, `product-landscape`, `due-diligence`
+
+Each mode has a reference file under `skills/deep-research/references/modes/` whose **Output sections** list is the `report.md` skeleton that `init --mode` scaffolds. `event-assessment`, `security-incident`, and `release-forecast` require at least one hypothesis; any report with a `forecast`-kind claim does too.
 
 `domain` is a lowercase kebab-case label such as `artificial-intelligence`, `semiconductors`, `public-markets`, or `consumer-audio`. Reuse an existing domain label when possible so indexes do not fragment into `ai`, `AI`, and `artificial-intelligence`.
 

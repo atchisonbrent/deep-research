@@ -4,7 +4,7 @@
 
 Produce the best-supported decision-grade answer to a substantial research question while making the evidence chain, uncertainty, source dependence, analytical judgment, and likely failure modes visible.
 
-The method applies to current events, technology landscapes, market and company analysis, policy, scientific synthesis, comparative research, product-category landscapes, due diligence, and forecasts such as likely AI model release windows. A report may explain what happened, compare alternatives, establish the current state of a field, or estimate what is likely next.
+The method applies to current and historical events, technology landscapes and states of practice, market and company analysis, entity background, policy and legal-regulatory analysis, scientific synthesis, security incidents, comparative research, product-category landscapes, due diligence, and forecasts such as likely AI model release windows. Each mode has a reference file under `skills/deep-research/references/modes/` that fixes its evidence hierarchy, gates, and output shape. A report may explain what happened, compare alternatives, establish the current state of a field, or estimate what is likely next.
 
 This is not a promise of objective omniscience. It is a repeatable method for being less wrong and easier to correct.
 
@@ -129,7 +129,7 @@ Assign a low/central/high probability range only after the claim ledger exists. 
 
 Probability is a statement about the analyst’s evidence state—not a frequency measured by the universe.
 
-Do not manufacture hypotheses for a straightforward technical landscape or descriptive comparison. In those modes, a claim matrix, alternatives table, or decision criteria can carry the analysis and `hypotheses` may be empty.
+Do not manufacture hypotheses for a straightforward technical landscape or descriptive comparison. In those modes, a claim matrix, alternatives table, or decision criteria can carry the analysis and `hypotheses` may be empty. Event assessment, security incidents, and release forecasts are inherently causal or forecast-shaped and require at least one hypothesis with a named alternative.
 
 ### Forecast-specific discipline
 

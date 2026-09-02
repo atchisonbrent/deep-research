@@ -50,11 +50,36 @@ CLAIM_STATUS = {"confirmed", "probable", "contested", "unsupported", "unknown"}
 IMPORTANCE = {"load-bearing", "supporting", "context"}
 REPORT_STATUS = {"draft", "reviewed", "superseded"}
 RESEARCH_MODES = {
-    "general", "event-assessment", "technology-landscape", "market-analysis",
-    "company-research", "release-forecast", "policy-analysis",
-    "scientific-synthesis", "comparative-analysis", "product-landscape",
-    "due-diligence",
+    "general", "event-assessment", "historical-analysis", "technology-landscape",
+    "state-of-practice", "market-analysis", "company-research", "entity-background",
+    "release-forecast", "policy-analysis", "legal-regulatory", "scientific-synthesis",
+    "security-incident", "comparative-analysis", "product-landscape", "due-diligence",
 }
+# Modes whose questions are inherently causal or forecast-shaped and therefore
+# require at least one competing hypothesis. Other modes may still add
+# hypotheses when a forecast claim exists.
+HYPOTHESIS_REQUIRED_MODES = {"release-forecast", "event-assessment", "security-incident"}
+# Mode-specific report.md skeletons. Section lists mirror the "Output sections"
+# of skills/deep-research/references/modes/<mode>.md; keep them in sync.
+MODE_SECTIONS: dict[str, list[str]] = {
+    "general": ["Verdict", "What is observed", "What is assessed", "Competing hypotheses", "Gaps and falsifiers"],
+    "event-assessment": ["Bottom line", "What happened", "Disputed claims and competing accounts", "Goals and results", "Human and economic cost", "Consequences and second-order effects", "Forecast and update triggers", "Source-confidence map", "Gaps and falsifiers"],
+    "historical-analysis": ["Verdict", "Established fact pattern", "Interpretive disputes and their evidence", "Causal assessment", "What the record cannot support", "Sources and provenance notes"],
+    "technology-landscape": ["Verdict", "State of the technology", "Capability boundaries and maturity", "Deployment reality", "Alternatives and tradeoffs", "Unresolved bottlenecks", "Trajectory and update triggers", "Gaps"],
+    "state-of-practice": ["Verdict", "Established practice", "Emerging and contested practice", "Deprecated or discredited practice", "Evidence linking practice to outcomes", "Context dependence and transfer limits", "Gaps"],
+    "market-analysis": ["Verdict", "Market definition and boundary", "Size range and basis", "Segments and structure", "Economics and drivers", "Competitive structure", "Scenarios and sensitivities", "Forecast triggers", "Gaps"],
+    "company-research": ["Verdict", "Products and business model", "Execution record", "Financial and operational position", "Competitive position and claimed advantages", "Dependencies and risks", "Open questions", "Gaps"],
+    "entity-background": ["Verdict", "Identity resolution", "Affiliations and roles", "Track record", "Documented conflicts or controversies", "Not established", "Gaps"],
+    "release-forecast": ["Verdict", "Release ladder status", "Evidence path for each signal", "Base rates and dependencies", "Blockers", "Earliest, central, and late cases", "Update triggers", "Gaps"],
+    "policy-analysis": ["Verdict", "The actual rule", "Implementation and enforcement state", "Affected groups and incentives", "Observed and modelled effects", "Legal and operational uncertainty", "Scenarios and triggers", "Gaps"],
+    "legal-regulatory": ["Verdict", "Jurisdiction, actors, and date", "Obligations and exposures", "Enforcement record", "Open interpretive questions", "Outcome scenarios", "Where professional judgment is required", "Gaps"],
+    "scientific-synthesis": ["Verdict", "Research question", "Evidence body", "Methods, populations, and effect sizes", "Replication and retraction state", "Consensus and live disputes", "Limitations and confounders", "Gaps"],
+    "security-incident": ["Bottom line", "Vector and vulnerability", "Timeline", "Scope and impact", "Attribution and its evidence", "Remediation state", "Competing accounts and forecast", "Gaps and falsifiers"],
+    "comparative-analysis": ["Verdict", "Comparison contract", "Eligibility gate", "Criteria matrix", "Normalized cost table", "Identity and fit gaps", "Who should choose each option", "Sensitivity to changed priorities", "Refresh-at-decision checklist"],
+    "product-landscape": ["Verdict", "Category map and segments", "Decision criteria that matter", "Option families and tradeoffs", "Value frontier and premium cases", "Reliability, repairability, and lock-in", "Category direction", "Purchase-time facts to refresh"],
+    "due-diligence": ["Verdict and go/no-go conditions", "Decision, threshold, and red-flag list", "Verified facts", "Unresolved representations", "Red flags", "Dependency and concentration map", "Downside cases", "Evidence requests", "Gaps"],
+}
+assert set(MODE_SECTIONS) == RESEARCH_MODES
 
 
 def load_json(path: Path) -> Any:
@@ -557,8 +582,8 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
     if not isinstance(hypotheses, list):
         hypotheses = []
     has_forecast_claim = any(claim.get("kind") == "forecast" for claim in claims if isinstance(claim, dict))
-    if report.get("mode") == "release-forecast" or has_forecast_claim:
-        require(errors, bool(hypotheses), "release forecasts and forecast claims require at least one hypothesis")
+    if report.get("mode") in HYPOTHESIS_REQUIRED_MODES or has_forecast_claim:
+        require(errors, bool(hypotheses), f"modes {sorted(HYPOTHESIS_REQUIRED_MODES)} and forecast claims require at least one hypothesis")
     hypothesis_ids: set[str] = set()
     for index, hypothesis in enumerate(hypotheses):
         where = f"hypotheses[{index}]"
@@ -804,6 +829,10 @@ def init_report(args: argparse.Namespace) -> Path:
     }
     (directory / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n", encoding="utf-8")
     (directory / "sources-ledger.json").write_text('{\n  "version": 1,\n  "sources": []\n}\n', encoding="utf-8")
+    sections = "\n\n".join(
+        f"## {heading}\n\n{PLACEHOLDER_PREFIX}the {heading.lower()} content for this {args.mode} report.[unverified]"
+        for heading in MODE_SECTIONS[args.mode]
+    )
     report = f"""---
 title: {args.title}
 slug: {args.slug}
@@ -820,25 +849,7 @@ assessment: assessment.json
 
 **Structured assessment:** [assessment.json](assessment.json)
 
-## Verdict
-
-Replace with the decision-grade answer.[unverified]
-
-## What is observed
-
-Replace with cited observations.[unverified]
-
-## What is assessed
-
-Replace with explicitly labeled inference.[unverified]
-
-## Competing hypotheses
-
-Replace with calibrated ranges and update triggers.[unverified]
-
-## Gaps and falsifiers
-
-Replace with what is missing and what would change the conclusion.[unverified]
+{sections}
 
 ## Sources
 """

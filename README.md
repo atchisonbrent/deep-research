@@ -1,6 +1,6 @@
 # Deep Research
 
-An open framework for AI-assisted, versioned, evidence-backed deep research across technology, markets, companies, policy, science, products, forecasts, and modern events.
+An open framework for AI-assisted, versioned, evidence-backed deep research across technology, practice, markets, companies, people and organizations, policy, law, science, security, history, products, forecasts, and modern events. Sixteen research modes each carry their own evidence hierarchy, gates, and report skeleton.
 
 This repository is designed for:
 

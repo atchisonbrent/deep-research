@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "deep-research" / "SKILL.md"
 RUBRIC = SKILL.parent / "references" / "reliability-rubric.md"
 MODES = SKILL.parent / "references" / "research-modes.md"
+MODES_DIR = SKILL.parent / "references" / "modes"
 
 
 class PublicDeepResearchSkillTests(unittest.TestCase):
@@ -39,14 +40,11 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
             "scan-sensitive",
             "expected visibility",
             "publishing report contents publicly requires explicit user intent",
-            "never rank a pre-tax teaser against an all-in protected total",
-            "exclude an option when unresolved identity",
             "never silently advance the old cutoff",
-            "never rank a measured value against silence",
-            "proxy-only cells are not secretly evidence",
-            "insufficient evidence to rank",
-            "a shared table can still be asymmetric",
-            "common-basis value, declared normalization, justified n/a, or named unresolved gap",
+            "references/modes/readme.md",
+            "the mode file is the contract, not a suggestion",
+            "add-evidence",
+            "validate --strict",
             "$framework/methodology.md",
             "$framework/schema.md",
         )
@@ -56,30 +54,25 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
 
         self.assertNotIn("/users/batchison", lowered)
         self.assertNotIn("skills/research/grounded-citations/scripts/sources.py", lowered)
+        # Private, deployment-specific skills must not be named in the public skill.
+        for private_skill in ("quota-aware-independent-review", "structured-agent-handoff", "safe-repository-automation"):
+            self.assertNotIn(private_skill, lowered)
+        # Comparative-analysis mechanics belong in the mode file, not the spine.
+        self.assertNotIn("pre-tax teaser", lowered)
+        self.assertLess(len(body.split()), 3600, "SKILL.md spine should stay compact; mode detail belongs in references/modes/")
 
     def test_public_references_cover_modes_and_reliability(self) -> None:
-        modes = MODES.read_text(encoding="utf-8").lower()
-        rubric = RUBRIC.read_text(encoding="utf-8").lower()
+        pointer = MODES.read_text(encoding="utf-8").lower()
+        self.assertIn("modes/readme.md", pointer)
+        readme = (MODES_DIR / "README.md").read_text(encoding="utf-8").lower()
+        for mode in ("general", "event-assessment", "historical-analysis", "technology-landscape", "state-of-practice", "market-analysis", "company-research", "entity-background", "release-forecast", "policy-analysis", "legal-regulatory", "scientific-synthesis", "security-incident", "comparative-analysis", "product-landscape", "due-diligence"):
+            with self.subTest(mode=mode):
+                self.assertIn(f"[{mode}.md]({mode}.md)", readme)
+                self.assertTrue((MODES_DIR / f"{mode}.md").is_file())
+        comparative = (MODES_DIR / "comparative-analysis.md").read_text(encoding="utf-8").lower()
         for phrase in (
-            "technology landscape",
-            "market analysis",
-            "company research",
-            "release forecast",
-            "scientific synthesis",
-            "product landscape",
-            "due diligence",
-            "test simultaneous fit",
-            "normalize decision-grade cost",
-            "rerun the eligibility gate, workload fit, normalized totals, and ranking",
-        ):
-            self.assertIn(phrase, modes)
-
-        self.assertIn("## comparative analysis", modes)
-        self.assertIn("## product landscape", modes)
-        comparative = modes.split("## comparative analysis", 1)[1].split("## product landscape", 1)[0]
-        self.assertIn("product-buying-research", comparative)
-        self.assertIn("no viable candidate within the comparison class", comparative)
-        for rule_class in (
+            "product-buying-research",
+            "no viable candidate within the comparison class",
             "common-basis value",
             "justified `n/a`",
             "unresolved gap",
@@ -87,11 +80,21 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
             "insufficient evidence to rank",
             "one shared, mutually comparable basis",
             "declared baseline",
+            "never rank a pre-tax teaser against an all-in protected total",
+            "exclude an option when unresolved identity",
+            "never rank a measured value against silence",
+            "proxy-only cells are not secretly evidence",
+            "a shared table can still be asymmetric",
+            "lineage.supersedes",
+            "lineage.superseded_by",
         ):
-            self.assertIn(rule_class, comparative)
-        self.assertIn("lineage.supersedes", comparative)
-        self.assertIn("lineage.superseded_by", comparative)
-        self.assertNotIn("mark the old verdict superseded", SKILL.read_text(encoding="utf-8").lower())
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, comparative)
+        entity = (MODES_DIR / "entity-background.md").read_text(encoding="utf-8").lower()
+        self.assertIn("does not cover private individuals", entity)
+        legal = (MODES_DIR / "legal-regulatory.md").read_text(encoding="utf-8").lower()
+        self.assertIn("not legal advice", legal)
+        rubric = RUBRIC.read_text(encoding="utf-8").lower()
         for phrase in (
             "not a points system",
             "particular claim",
@@ -105,6 +108,9 @@ class PublicDeepResearchSkillTests(unittest.TestCase):
         text = SKILL.read_text(encoding="utf-8")
         for path in re.findall(r"`(references/[^`]+\.md)`", text):
             self.assertTrue((SKILL.parent / path).is_file(), path)
+        for mode_file in MODES_DIR.glob("*.md"):
+            for link in re.findall(r"\]\(([a-z-]+\.md)\)", mode_file.read_text(encoding="utf-8")):
+                self.assertTrue((MODES_DIR / link).is_file(), f"{mode_file.name} -> {link}")
         codex = (SKILL.parent / "agents" / "openai.yaml").read_text(encoding="utf-8")
         self.assertIn("display_name: Deep Research", codex)
         self.assertIn("allow_implicit_invocation: true", codex)
