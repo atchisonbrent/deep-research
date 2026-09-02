@@ -23,7 +23,7 @@
 
 `draft`, `reviewed`, `superseded`
 
-Scaffold placeholders from `init` (`Replace with …`) are rejected wherever they remain in `report.md`, `report.summary`, or `report.questions`.
+Scaffold placeholders written by `init` carry an explicit marker (`[[deep-research placeholder]]`); the validator rejects that marker wherever it remains in `report.md`, `report.summary`, or `report.questions`. Ordinary prose that happens to say "replace with" is not affected, and pre-0.2.0 scaffolds without the marker are not detected.
 
 `reviewed` requires a passed independent review record. `superseded` requires a `lineage.superseded_by` target. Lineage values are repository-relative report directories under `reports/`; the validator checks that they exist and that successor cutoffs move forward.
 

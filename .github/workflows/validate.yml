@@ -18,8 +18,8 @@ jobs:
           python-version: "3.12"
       - name: Unit tests
         run: python3 -m unittest discover -s tests -v
-      - name: Validate the synthetic report fixture through the CLI
-        run: python3 tools/reportctl.py validate tests/fixtures/minimal-report
+      - name: Validate the synthetic report fixture through the CLI (strict)
+        run: python3 tools/reportctl.py validate --strict tests/fixtures/minimal-report
       - name: Validate every report
         run: |
           python3 - <<'PY'
@@ -90,7 +90,7 @@ jobs:
         run: |
           python3 tools/release.py apply --notes /tmp/release-notes.md
           python3 -m unittest discover -s tests -v
-          python3 tools/reportctl.py validate tests/fixtures/minimal-report
+          python3 tools/reportctl.py validate --strict tests/fixtures/minimal-report
           python3 tools/reportctl.py validate examples/iran-war-six-month-assessment
           python3 tools/reportctl.py scan-sensitive
           git diff --check

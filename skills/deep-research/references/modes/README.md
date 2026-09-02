@@ -32,3 +32,6 @@ Modes change the evidence hierarchy and output shape. They never change citation
 | `due-diligence` | [due-diligence.md](due-diligence.md) | downside scenarios |
 
 If no mode fits, use `general` and borrow the nearest hierarchy explicitly in the report's contract section rather than inventing a hybrid silently.
+
+
+The "Hypotheses expected" column describes the mode's usual shape. Independently of mode, any report containing a `forecast`-kind claim must carry at least one hypothesis with a probability range, because the validator scores forecasts through hypotheses; a scenario-style mode that ventures a forecast claim adds a hypothesis for it.

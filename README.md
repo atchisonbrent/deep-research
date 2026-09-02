@@ -48,7 +48,7 @@ The repository deliberately does **not** assign universal truth scores to outlet
 
 ## Example output
 
-The public repository includes a real, validated [Iran war six-month assessment](examples/iran-war-six-month-assessment/report.md), plus its [structured assessment](examples/iran-war-six-month-assessment/assessment.json) and [source ledger](examples/iran-war-six-month-assessment/sources-ledger.json). It is preserved at its stated cutoff rather than silently updated after the fact.
+The public repository includes a real [Iran war six-month assessment](examples/iran-war-six-month-assessment/report.md), plus its [structured assessment](examples/iran-war-six-month-assessment/assessment.json) and [source ledger](examples/iran-war-six-month-assessment/sources-ledger.json). It is preserved at its stated cutoff rather than silently updated after the fact. It predates framework 0.2.0, so it passes `validate` but not `validate --strict`: its evidence excerpts were recorded before ledger-quote verification existed, and backfilling those quotes without re-retrieving the sources would manufacture verification records. New reports are held to the strict bar; the fixture under `tests/fixtures/minimal-report` shows the strict-clean shape.
 
 Consumer vaults keep their own reports chronological and retain each original cutoff. Material updates create a linked update instead of silently rewriting what was knowable earlier.
 

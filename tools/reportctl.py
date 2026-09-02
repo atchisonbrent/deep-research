@@ -450,8 +450,8 @@ def normalize_whitespace(value: str) -> str:
 def validate_report(directory: Path, warnings: list[str] | None = None) -> list[str]:
     """Validate one report directory.
 
-    Returns hard errors. Advisory findings that will become errors in the next
-    major schema revision are appended to ``warnings`` when a list is supplied.
+    Returns hard errors. Advisory findings that will become errors at the next
+    minor framework release are appended to ``warnings`` when a list is supplied.
     """
     errors: list[str] = []
     if warnings is None:
@@ -704,7 +704,7 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         require(errors, evidence_id not in evidence_ids, f"duplicate evidence id: {evidence_id}")
         if evidence_id:
             evidence_ids.add(evidence_id)
-        require(errors, item.get("source_id") in source_by_id, f"{where}.source_id is unknown")
+        require(errors, isinstance(item.get("source_id"), int) and item.get("source_id") in source_by_id, f"{where}.source_id is unknown")
         require(errors, text(item.get("excerpt")), f"{where}.excerpt must be non-empty")
         require(errors, len(str(item.get("excerpt", ""))) <= 1000, f"{where}.excerpt exceeds 1000 characters")
         require(errors, text(item.get("location")), f"{where}.location must be non-empty")
@@ -1525,7 +1525,7 @@ def main() -> int:
                 args = parser.parse_args(argv)
         except SystemExit as exc:
             if exc.code in (None, 0):
-                raise
+                raise  # --help: human-readable text on stdout, exit 0, is the one intentional exception
             detail = captured.getvalue().strip().splitlines()
             print(json.dumps({"ok": False, "command": None, "errors": [detail[-1] if detail else "invalid command line"]}, indent=2))
             return 2
