@@ -9,6 +9,24 @@ All notable changes to this project are documented here. This project follows [S
 
 
 
+
+## [0.2.0] - 2026-09-02
+
+### Breaking Changes
+
+- harden lifecycle commands and machine interface after second review
+
+### Features
+
+- enforce verified excerpts, temporal coherence, and status-confidence guardrails
+- generalize research modes with per-mode references and skeletons
+- add supersede, resolve, and calibration lifecycle commands
+
+### Bug Fixes
+
+- harden validator semantics after independent review
+- align superseded hypotheses, harden lifecycle edge cases
+- reject non-string claim references and make supersede fully transactional
 ## [0.1.7] - 2026-09-02
 
 ### Bug Fixes
@@ -62,3 +80,4 @@ All notable changes to this project are documented here. This project follows [S
 [0.1.5]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.5
 [0.1.6]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.6
 [0.1.7]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.7
+[0.2.0]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.2.0
