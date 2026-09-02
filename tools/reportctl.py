@@ -20,6 +20,21 @@ SOURCE_LINE_RE = re.compile(r"^\[(\d+)\]\s+(https?://\S+?)(?:\s+—\s+.*)?$")
 SOURCES_HEADER_RE = re.compile(r"^## Sources\s*$", re.IGNORECASE)
 ID_RE = re.compile(r"^[A-Z][A-Z0-9_-]{1,31}$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+# Abbreviations whose trailing period must not end a sentence. Matched
+# case-sensitively as whole tokens; extend deliberately rather than broadly.
+ABBREVIATIONS = (
+    "U.S.", "U.K.", "U.N.", "E.U.", "U.A.E.", "D.C.", "e.g.", "i.e.", "etc.",
+    "vs.", "cf.", "al.", "approx.", "Dr.", "Mr.", "Mrs.", "Ms.", "Jr.", "Sr.",
+    "Inc.", "Ltd.", "Co.", "Corp.", "No.", "St.", "Fig.", "Gen.", "Lt.", "Col.",
+    "Sen.", "Rep.", "Gov.", "Jan.", "Feb.", "Mar.", "Apr.", "Jun.", "Jul.",
+    "Aug.", "Sep.", "Sept.", "Oct.", "Nov.", "Dec.",
+)
+ABBREVIATION_RE = re.compile(
+    r"(?<![A-Za-z0-9])(" + "|".join(re.escape(a) for a in sorted(ABBREVIATIONS, key=len, reverse=True)) + r")(?=\s|$)"
+)
+SENTENCE_RE = re.compile(r".*?[.!?][\"'\u201d\u2019)]*(?:\[\d+\])*(?=\s+|$)|.+$")
+PLACEHOLDER_PREFIX = "Replace with "
+EVIDENCE_KINDS = {"excerpt", "artifact"}
 
 SOURCE_TYPES = {
     "primary-record", "wire-service", "specialist", "government",
@@ -100,10 +115,17 @@ def valid_range(value: Any) -> bool:
 
 
 def split_cited_sentences(value: str) -> list[str]:
-    """Split sentences while retaining trailing citation groups."""
+    """Split sentences while retaining trailing citation groups.
+
+    Known abbreviations (``U.S.``, ``e.g.``, ``Inc.``) do not end a sentence,
+    and a closing quote or parenthesis may sit between the terminal
+    punctuation and its citation group.
+    """
+    marker = "\u0000"
+    protected = ABBREVIATION_RE.sub(lambda m: m.group(1).replace(".", marker), value)
     return [
-        part.strip()
-        for part in re.findall(r".*?[.!?](?:\[\d+\])*(?=\s+|$)|.+$", value)
+        part.replace(marker, ".").strip()
+        for part in SENTENCE_RE.findall(protected)
         if part.strip()
     ]
 
@@ -124,10 +146,27 @@ def report_body_and_sources(markdown: str) -> tuple[str, dict[int, str]]:
     return "\n".join(lines[:header]), listed
 
 
+def is_table_separator(stripped: str) -> bool:
+    return bool(re.fullmatch(r"[| :\-]+", stripped))
+
+
+def table_header_indexes(lines: list[str]) -> set[int]:
+    """Return indexes of table header rows: a table row directly followed by a separator row."""
+    headers: set[int] = set()
+    for index in range(len(lines) - 1):
+        current = lines[index].strip()
+        following = lines[index + 1].strip()
+        if current.startswith("|") and not is_table_separator(current) and following.startswith("|") and is_table_separator(following):
+            headers.add(index)
+    return headers
+
+
 def prose_sentences(markdown: str) -> list[str]:
     sentences: list[str] = []
     in_fence = False
-    for line in markdown.splitlines():
+    lines = markdown.splitlines()
+    headers = table_header_indexes(lines)
+    for index, line in enumerate(lines):
         stripped = line.strip()
         if stripped.startswith("```"):
             in_fence = not in_fence
@@ -142,7 +181,7 @@ def prose_sentences(markdown: str) -> list[str]:
             continue
         is_table = stripped.startswith("|")
         if is_table:
-            if re.fullmatch(r"[| :\-]+", stripped):
+            if is_table_separator(stripped) or index in headers:
                 continue
             stripped = stripped.strip("| ")
             if len(stripped.split()) >= 2:
@@ -156,18 +195,29 @@ def prose_sentences(markdown: str) -> list[str]:
 
 
 def prose_units(markdown: str) -> list[str]:
-    """Return citation units: prose paragraphs, list items, and table rows."""
+    """Return citation units: prose paragraphs, list items, and table body rows.
+
+    Table header rows label columns and carry no evidence, so they are not
+    citation units. A list item that wraps onto indented continuation lines is
+    one unit, not one unit per physical line.
+    """
     units: list[str] = []
     paragraph: list[str] = []
+    list_item: list[str] = []
     in_fence = False
     in_frontmatter = False
+    lines = markdown.splitlines()
+    headers = table_header_indexes(lines)
 
     def flush() -> None:
+        if list_item:
+            units.append(" ".join(list_item))
+            list_item.clear()
         if paragraph:
             units.append(" ".join(paragraph))
             paragraph.clear()
 
-    for line_number, line in enumerate(markdown.splitlines()):
+    for line_number, line in enumerate(lines):
         stripped = line.strip()
         if line_number == 0 and stripped == "---":
             in_frontmatter = True
@@ -190,13 +240,18 @@ def prose_units(markdown: str) -> list[str]:
             continue
         if stripped.startswith("|"):
             flush()
-            if not re.fullmatch(r"[| :\-]+", stripped):
+            if not is_table_separator(stripped) and line_number not in headers:
                 units.append(stripped)
             continue
         if re.match(r"^(?:>|[-*]|\d+[.)])\s+", stripped):
             flush()
-            units.append(stripped)
+            list_item.append(stripped)
             continue
+        if list_item and line[:1].isspace():
+            list_item.append(stripped)
+            continue
+        if list_item:
+            flush()
         paragraph.append(stripped)
     flush()
     return [unit for unit in units if len(unit.split()) >= 4]
@@ -214,8 +269,23 @@ def citation_scope_valid(unit: str) -> bool:
     return bool(sentences) and all(CITE_RE.search(sentence) for sentence in sentences)
 
 
-def validate_report(directory: Path) -> list[str]:
+STATUS_CONFIDENCE_FLOOR = {"confirmed": 0.80, "probable": 0.50}
+STATUS_CONFIDENCE_CEILING = {"unsupported": 0.50, "contested": 0.90}
+
+
+def normalize_whitespace(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def validate_report(directory: Path, warnings: list[str] | None = None) -> list[str]:
+    """Validate one report directory.
+
+    Returns hard errors. Advisory findings that will become errors in the next
+    major schema revision are appended to ``warnings`` when a list is supplied.
+    """
     errors: list[str] = []
+    if warnings is None:
+        warnings = []
     directory = directory.resolve()
     require(errors, directory.is_dir(), f"report directory does not exist: {directory}")
     if errors:
@@ -289,6 +359,9 @@ def validate_report(directory: Path) -> list[str]:
     require(errors, isinstance(questions, list) and bool(questions) and all(text(q) for q in questions), "report.questions must be a non-empty text list")
     if text(report.get("slug")):
         require(errors, directory.name == report["slug"], "report.slug must match the directory name")
+    require(errors, not str(report.get("summary", "")).startswith(PLACEHOLDER_PREFIX), "report.summary still contains the init placeholder")
+    if isinstance(questions, list):
+        require(errors, not any(str(q).startswith(PLACEHOLDER_PREFIX) for q in questions), "report.questions still contain the init placeholder")
 
     ledger_sources = ledger.get("sources")
     require(errors, ledger.get("version") == 1, "sources-ledger.json version must be 1")
@@ -307,6 +380,11 @@ def validate_report(directory: Path) -> list[str]:
         require(errors, valid_url(source.get("url")), f"{where}.url must be http(s)")
         require(errors, text(source.get("title")), f"{where}.title must be non-empty")
         require(errors, parse_temporal(source.get("accessed")) is not None, f"{where}.accessed must be an ISO date or datetime")
+        quotes = source.get("quotes", [])
+        require(errors, isinstance(quotes, list), f"{where}.quotes must be a list when present")
+        if isinstance(quotes, list):
+            for quote_index, quote in enumerate(quotes):
+                require(errors, isinstance(quote, dict) and text(quote.get("text")), f"{where}.quotes[{quote_index}].text must be non-empty")
         if isinstance(source_id, int):
             require(errors, source_id not in ledger_by_id, f"duplicate ledger source id: {source_id}")
             ledger_by_id[source_id] = source
@@ -331,6 +409,12 @@ def validate_report(directory: Path) -> list[str]:
             require(errors, text(source.get(key)), f"{where}.{key} must be non-empty text")
         require(errors, source.get("published_at") is None or parse_temporal(source.get("published_at")) is not None, f"{where}.published_at must be null or an ISO date/datetime")
         require(errors, parse_temporal(source.get("retrieved_at")) is not None, f"{where}.retrieved_at must be an ISO date or datetime")
+        retrieved_dt = parse_temporal(source.get("retrieved_at"))
+        published_dt = parse_temporal(source.get("published_at"))
+        if retrieved_dt and cutoff_dt:
+            require(errors, retrieved_dt.date() <= cutoff_dt.date(), f"{where}.retrieved_at is after the report cutoff")
+        if retrieved_dt and published_dt:
+            require(errors, published_dt.date() <= retrieved_dt.date(), f"{where}.published_at is after retrieved_at")
         require(errors, source.get("source_type") in SOURCE_TYPES, f"{where}.source_type invalid")
         require(errors, source.get("access") in ACCESS, f"{where}.access invalid")
         require(errors, source.get("directness") in DIRECTNESS, f"{where}.directness invalid")
@@ -391,6 +475,9 @@ def validate_report(directory: Path) -> list[str]:
             require(errors, isinstance(claim.get(key), list), f"{where}.{key} must be a list")
         require(errors, text(claim.get("rationale")), f"{where}.rationale must be non-empty")
         require(errors, valid_datetime(claim.get("last_checked")), f"{where}.last_checked must be ISO-8601")
+        last_checked_dt = parse_temporal(claim.get("last_checked"))
+        if last_checked_dt and cutoff_dt:
+            require(errors, last_checked_dt <= cutoff_dt, f"{where}.last_checked is after the report cutoff")
         for source_id in claim.get("source_ids", []) + claim.get("contradicting_source_ids", []):
             require(errors, source_id in source_by_id, f"{where} references unknown source {source_id}")
         if claim.get("importance") == "load-bearing" and claim.get("kind") not in {"forecast", "unknown"}:
@@ -398,8 +485,11 @@ def validate_report(directory: Path) -> list[str]:
         supporting = [source_by_id[source_id] for source_id in claim.get("source_ids", []) if source_id in source_by_id]
         groups = {source.get("independence_group") for source in supporting}
         has_direct_full = any(source.get("directness") == "direct" and source.get("access") == "full" for source in supporting)
+        has_non_snippet = any(source.get("access") in {"full", "partial"} for source in supporting)
         if claim.get("importance") == "load-bearing" and claim.get("status") == "confirmed" and claim.get("kind") in {"fact", "attributed"}:
             require(errors, has_direct_full or len(groups) >= 2, f"{where} confirmed load-bearing claim requires direct full evidence or two independence groups")
+        if claim.get("importance") == "load-bearing" and supporting and claim.get("kind") in {"fact", "attributed"}:
+            require(errors, has_non_snippet, f"{where} load-bearing claim cannot rest on snippet-only sources")
         confidence = claim.get("confidence")
         if isinstance(confidence, list) and valid_range(confidence):
             low_confidence = float(confidence[0])
@@ -407,6 +497,13 @@ def validate_report(directory: Path) -> list[str]:
             if supporting and len(groups) <= 1 and not has_direct_full:
                 require(errors, high_confidence <= 0.95, f"{where} single-group indirect evidence cannot exceed 0.95 confidence")
                 require(errors, high_confidence - low_confidence >= 0.15, f"{where} single-group indirect evidence requires a confidence width of at least 0.15")
+            status = claim.get("status")
+            if status in STATUS_CONFIDENCE_FLOOR:
+                require(errors, low_confidence >= STATUS_CONFIDENCE_FLOOR[status], f"{where} status {status!r} requires confidence low >= {STATUS_CONFIDENCE_FLOOR[status]:.2f}")
+            if status in STATUS_CONFIDENCE_CEILING:
+                require(errors, high_confidence <= STATUS_CONFIDENCE_CEILING[status], f"{where} status {status!r} requires confidence high <= {STATUS_CONFIDENCE_CEILING[status]:.2f}")
+            if claim.get("kind") == "unknown":
+                require(errors, high_confidence - low_confidence >= 0.30, f"{where} unknown claims must carry a wide confidence interval (>= 0.30)")
         if claim_id:
             require(errors, claim_id not in claim_by_id, f"duplicate claim id: {claim_id}")
             claim_by_id[claim_id] = claim
@@ -433,6 +530,16 @@ def validate_report(directory: Path) -> list[str]:
         require(errors, len(str(item.get("excerpt", ""))) <= 1000, f"{where}.excerpt exceeds 1000 characters")
         require(errors, text(item.get("location")), f"{where}.location must be non-empty")
         require(errors, valid_datetime(item.get("captured_at")), f"{where}.captured_at must be ISO-8601")
+        captured_dt = parse_temporal(item.get("captured_at"))
+        if captured_dt and cutoff_dt:
+            require(errors, captured_dt <= cutoff_dt, f"{where}.captured_at is after the report cutoff")
+        kind = item.get("kind", "excerpt")
+        require(errors, kind in EVIDENCE_KINDS, f"{where}.kind must be one of {sorted(EVIDENCE_KINDS)}")
+        if kind == "excerpt" and item.get("source_id") in ledger_by_id and text(item.get("excerpt")):
+            ledger_quotes = {normalize_whitespace(str(q.get("text", ""))) for q in ledger_by_id[item["source_id"]].get("quotes", []) if isinstance(q, dict)}
+            verified = normalize_whitespace(str(item["excerpt"])) in ledger_quotes
+            if not verified:
+                warnings.append(f"{where}.excerpt has no verified ledger quote for source {item['source_id']}; use `add-evidence` or `add-quote --from-file`, or set kind to 'artifact' for non-text evidence")
         supports = item.get("supports_claim_ids")
         require(errors, isinstance(supports, list) and bool(supports), f"{where}.supports_claim_ids must be non-empty")
         if isinstance(supports, list):
@@ -479,6 +586,8 @@ def validate_report(directory: Path) -> list[str]:
                 require(errors, claim_id in claim_by_id, f"{where} references unknown claim {claim_id}")
         alternatives = hypothesis.get("alternatives")
         require(errors, isinstance(alternatives, list), f"{where}.alternatives must be a list")
+        if isinstance(alternatives, list):
+            require(errors, bool(alternatives) and all(text(a) for a in alternatives), f"{where}.alternatives must name at least one credible alternative")
         triggers = hypothesis.get("update_triggers")
         require(errors, isinstance(triggers, list) and bool(triggers) and all(text(t) for t in triggers), f"{where}.update_triggers must be non-empty text")
         require(errors, text(hypothesis.get("rationale")), f"{where}.rationale must be non-empty")
@@ -533,8 +642,9 @@ def validate_report(directory: Path) -> list[str]:
     require(errors, frontmatter_match is not None, "report.md must start with frontmatter")
     if frontmatter_match:
         fields = dict(re.findall(r"^([a-z_]+):\s*(.+)$", frontmatter_match.group(1), re.MULTILINE))
-        for key in ("slug", "mode", "domain", "cutoff", "status"):
+        for key in ("title", "slug", "mode", "domain", "cutoff", "status"):
             require(errors, fields.get(key) == str(report.get(key, "")), f"report.md frontmatter {key} differs from assessment.json")
+    require(errors, PLACEHOLDER_PREFIX not in body, "report.md still contains init placeholder text")
     return errors
 
 
@@ -571,12 +681,13 @@ def add_source(directory: Path, url: str, title: str, accessed: str) -> int:
 
 
 def add_quote(directory: Path, source_id: int, quote: str, evidence_file: Path) -> None:
+    """Verify ``quote`` against ``evidence_file`` and record it in the ledger."""
+    if not text(quote):
+        raise ValueError("quote text must be non-empty")
+    if len(quote) > 1000:
+        raise ValueError("quote exceeds 1000 characters; keep excerpts short")
     evidence = evidence_file.read_text(encoding="utf-8")
-
-    def normalize(value: str) -> str:
-        return re.sub(r"\s+", " ", value).strip()
-
-    if normalize(quote) not in normalize(evidence):
+    if normalize_whitespace(quote) not in normalize_whitespace(evidence):
         raise ValueError("quote was not found verbatim in the evidence file")
     ledger_path = directory / "sources-ledger.json"
     ledger = load_json(ledger_path)
@@ -584,9 +695,73 @@ def add_quote(directory: Path, source_id: int, quote: str, evidence_file: Path) 
     if source is None:
         raise ValueError(f"unknown source id: {source_id}")
     quotes = source.setdefault("quotes", [])
-    if not any(normalize(item.get("text", "")) == normalize(quote) for item in quotes):
+    if not any(normalize_whitespace(item.get("text", "")) == normalize_whitespace(quote) for item in quotes):
         quotes.append({"text": quote, "added": datetime.now(timezone.utc).date().isoformat()})
         ledger_path.write_text(json.dumps(ledger, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def next_prefixed_id(existing: list[str], prefix: str) -> str:
+    highest = 0
+    for value in existing:
+        match = re.fullmatch(rf"{re.escape(prefix)}(\d+)", str(value))
+        if match:
+            highest = max(highest, int(match.group(1)))
+    return f"{prefix}{highest + 1}"
+
+
+def add_evidence(
+    directory: Path,
+    source_id: int,
+    quote: str,
+    evidence_file: Path,
+    claim_ids: list[str],
+    location: str,
+    captured_at: str,
+) -> str:
+    """Verify a quotation, record it in the ledger, and attach a claim-facing evidence record.
+
+    This is the one-step path that keeps ``sources-ledger.json`` quotes and
+    ``assessment.json.evidence`` in agreement, so the validator can prove the
+    excerpt was checked against fetched text.
+    """
+    if not claim_ids:
+        raise ValueError("at least one --claim is required")
+    if not text(location):
+        raise ValueError("--location must be non-empty")
+    if not valid_datetime(captured_at):
+        raise ValueError("--captured-at must be ISO-8601")
+    assessment_path = directory / "assessment.json"
+    assessment = load_json(assessment_path)
+    claims = assessment.get("claims") or []
+    known = {claim.get("id") for claim in claims if isinstance(claim, dict)}
+    missing = [claim_id for claim_id in claim_ids if claim_id not in known]
+    if missing:
+        raise ValueError(f"unknown claim id(s): {', '.join(missing)}")
+    for claim in claims:
+        if isinstance(claim, dict) and claim.get("id") in claim_ids and source_id not in (claim.get("source_ids") or []):
+            raise ValueError(f"claim {claim['id']} does not list source {source_id}; add it to source_ids first")
+    add_quote(directory, source_id, quote, evidence_file)
+    evidence = assessment.setdefault("evidence", [])
+    for item in evidence:
+        if isinstance(item, dict) and item.get("source_id") == source_id and normalize_whitespace(str(item.get("excerpt", ""))) == normalize_whitespace(quote):
+            merged = sorted(set(item.get("supports_claim_ids", [])) | set(claim_ids))
+            item["supports_claim_ids"] = merged
+            assessment_path.write_text(json.dumps(assessment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            return str(item["id"])
+    evidence_id = next_prefixed_id([item.get("id") for item in evidence if isinstance(item, dict)], "E")
+    evidence.append(
+        {
+            "id": evidence_id,
+            "kind": "excerpt",
+            "source_id": source_id,
+            "excerpt": quote,
+            "location": location,
+            "supports_claim_ids": list(claim_ids),
+            "captured_at": captured_at,
+        }
+    )
+    assessment_path.write_text(json.dumps(assessment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return evidence_id
 
 
 def init_report(args: argparse.Namespace) -> Path:
@@ -718,9 +893,15 @@ def sensitive_content_errors() -> list[str]:
     errors: list[str] = []
     forbidden_names = {".env", "auth.json", "credentials.json", "id_rsa", "id_ed25519"}
     patterns = {
-        "private key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+        "private key": re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----"),
         "GitHub token": re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b"),
-        "AWS access key": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+        "GitHub fine-grained token": re.compile(r"\bgithub_pat_[A-Za-z0-9_]{40,}\b"),
+        "AWS access key": re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
+        "OpenAI-style key": re.compile(r"\bsk-(?:proj-|ant-|live-)?[A-Za-z0-9_-]{32,}\b"),
+        "Slack token": re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{20,}\b"),
+        "Google API key": re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
+        "JWT": re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
+        "Stripe key": re.compile(r"\b[sr]k_live_[A-Za-z0-9]{20,}\b"),
     }
     for path in ROOT.rglob("*"):
         if not path.is_file() or ".git" in path.parts:
@@ -742,6 +923,7 @@ def main() -> int:
     global ROOT, REPORTS
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT, help="repository root containing reports/ (default: framework checkout)")
+    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON results on stdout")
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init", help="create a report skeleton")
     init.add_argument("--slug", required=True)
@@ -751,6 +933,7 @@ def main() -> int:
     init.add_argument("--domain", default="general")
     validate = sub.add_parser("validate", help="validate one report directory")
     validate.add_argument("directory", type=Path)
+    validate.add_argument("--strict", action="store_true", help="treat advisory warnings as errors")
     render = sub.add_parser("render-sources", help="rewrite report Sources from the local ledger")
     render.add_argument("directory", type=Path)
     add_source_parser = sub.add_parser("add-source", help="register a source in a report-local ledger")
@@ -763,6 +946,14 @@ def main() -> int:
     add_quote_parser.add_argument("source_id", type=int)
     add_quote_parser.add_argument("--text", required=True)
     add_quote_parser.add_argument("--from-file", required=True, type=Path)
+    add_evidence_parser = sub.add_parser("add-evidence", help="verify a quotation and attach it to claims in one step")
+    add_evidence_parser.add_argument("directory", type=Path)
+    add_evidence_parser.add_argument("source_id", type=int)
+    add_evidence_parser.add_argument("--text", required=True)
+    add_evidence_parser.add_argument("--from-file", required=True, type=Path)
+    add_evidence_parser.add_argument("--claim", action="append", required=True, dest="claims", metavar="CLAIM_ID")
+    add_evidence_parser.add_argument("--location", required=True)
+    add_evidence_parser.add_argument("--captured-at", required=True)
     index = sub.add_parser("index", help="regenerate reports/index.md")
     index.add_argument("--check", action="store_true")
     sub.add_parser("scan-sensitive", help="scan repository text for high-confidence secret material")
@@ -774,12 +965,22 @@ def main() -> int:
         print(init_report(args))
         return 0
     if args.command == "validate":
-        errors = validate_report(args.directory)
+        warnings: list[str] = []
+        errors = validate_report(args.directory, warnings)
+        if args.strict:
+            errors = errors + [f"strict: {warning}" for warning in warnings]
+            warnings = []
+        if args.json:
+            print(json.dumps({"ok": not errors, "directory": str(args.directory), "errors": errors, "warnings": warnings}, indent=2))
+            return 1 if errors else 0
+        for warning in warnings:
+            print(f"WARNING: {warning}", file=sys.stderr)
         if errors:
             for error in errors:
                 print(f"ERROR: {error}", file=sys.stderr)
             return 1
-        print(f"OK: {args.directory}")
+        suffix = f" ({len(warnings)} warning(s))" if warnings else ""
+        print(f"OK: {args.directory}{suffix}")
         return 0
     if args.command == "render-sources":
         render_sources(args.directory)
@@ -791,7 +992,7 @@ def main() -> int:
         except ValueError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
-        print(source_id)
+        print(json.dumps({"source_id": source_id}) if args.json else source_id)
         return 0
     if args.command == "add-quote":
         try:
@@ -799,7 +1000,15 @@ def main() -> int:
         except (ValueError, OSError, UnicodeError) as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
-        print(f"attached quote to source {args.source_id}")
+        print(json.dumps({"source_id": args.source_id}) if args.json else f"attached quote to source {args.source_id}")
+        return 0
+    if args.command == "add-evidence":
+        try:
+            evidence_id = add_evidence(args.directory, args.source_id, args.text, args.from_file, args.claims, args.location, args.captured_at)
+        except (ValueError, OSError, UnicodeError) as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps({"evidence_id": evidence_id, "source_id": args.source_id}) if args.json else evidence_id)
         return 0
     if args.command == "index":
         path = REPORTS / "index.md"

@@ -84,7 +84,18 @@ python3 tools/reportctl.py add-quote "$REPORT" 1 \
 
 The command refuses text not found in the evidence file. Do not commit full copyrighted source dumps; keep short excerpts in the ledger/assessment and URLs to public originals.
 
-`add-quote` verifies and records the ledger excerpt. You must still add the claim-facing `evidence` record in `assessment.json`, naming the source ID, supported claim IDs, location, and capture date. The ledger proves quotation identity; the assessment explains what that quotation supports.
+`add-quote` verifies and records the ledger excerpt only. The preferred one-step path is `add-evidence`, which verifies the quotation, records it in the ledger, and appends the claim-facing `evidence` record in `assessment.json` so the two stay in agreement:
+
+```bash
+python3 tools/reportctl.py add-evidence "$REPORT" 1 \
+  --text "Exact wording copied from the source." \
+  --from-file /path/to/extracted-source.txt \
+  --claim C1 --claim C2 \
+  --location "section 3, paragraph 2" \
+  --captured-at 2026-08-31T10:00:00Z
+```
+
+The claim must already list the source in its `source_ids`. For non-text evidence (a figure, a specification-table cell, a commit), write the `evidence` entry by hand with `"kind": "artifact"` and a precise `location`; artifacts are exempt from the ledger-quote match. Any `excerpt`-kind entry without a verified ledger quote produces a validation warning; `validate --strict` promotes warnings to errors.
 
 ## 5. Draft and render citations
 
@@ -100,6 +111,8 @@ python3 tools/reportctl.py render-sources "$REPORT"
 
 ```bash
 python3 tools/reportctl.py validate "$REPORT"
+python3 tools/reportctl.py validate --strict "$REPORT"   # warnings become errors
+python3 tools/reportctl.py --json validate "$REPORT"     # machine-readable result
 python3 tools/reportctl.py index
 python3 tools/reportctl.py index --check
 python3 tools/reportctl.py scan-sensitive

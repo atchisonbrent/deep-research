@@ -169,8 +169,8 @@ Use a report-local `sources-ledger.json` with stable numeric IDs.
 - Cite the primary record for what it says and independent reporting for interpretation or context.
 - A citation to a source repeating another source is not independent corroboration.
 - Never cite a search snippet as though the full page was read; mark access as `snippet`.
-- Attach short verbatim evidence excerpts for load-bearing claims.
-- Cite data-bearing table rows; tables are not exempt from coverage.
+- Attach short verbatim evidence excerpts for load-bearing claims, recorded through `add-evidence` (or `add-quote` plus a matching evidence entry) so the excerpt is provably checked against fetched text. Use `kind: artifact` for figures, table cells, and other non-text coordinates.
+- Cite data-bearing table rows; tables are not exempt from coverage. Header rows are labels, not evidence, and are not counted.
 - `[unverified]` is an uncertainty marker, not a citation and not coverage credit.
 
 ## 10. Coverage and stopping rules

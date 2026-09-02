@@ -126,7 +126,7 @@ class ReportCtlTests(unittest.TestCase):
             evidence.write_text("The exact evidence sentence appears here.\n")
             reportctl.add_quote(target, 1, "The exact evidence sentence appears here.", evidence)
             ledger = json.loads((target / "sources-ledger.json").read_text())
-            self.assertEqual("The exact evidence sentence appears here.", ledger["sources"][0]["quotes"][0]["text"])
+            self.assertEqual("The exact evidence sentence appears here.", ledger["sources"][0]["quotes"][-1]["text"])
             with self.assertRaisesRegex(ValueError, "not found verbatim"):
                 reportctl.add_quote(target, 1, "A fabricated quotation.", evidence)
 
@@ -157,10 +157,35 @@ class ReportCtlTests(unittest.TestCase):
             errors = reportctl.validate_report(target)
             self.assertIn("evidence[0].source_id must be listed by supported claim C1", errors)
 
-    def test_table_rows_are_part_of_citation_coverage(self) -> None:
-        units = reportctl.prose_units("| Metric | 123 units |\n|---|---|")
+    def test_table_body_rows_are_part_of_citation_coverage(self) -> None:
+        units = reportctl.prose_units("| Candidate | Metric | Basis |\n|---|---|---|\n| Alpha | 123 units | common basis [1] |")
         self.assertEqual(1, len(units))
         self.assertIn("123 units", units[0])
+
+    def test_table_header_rows_are_not_citation_units(self) -> None:
+        markdown = "| Candidate | Price basis | Legroom |\n|---|---|---|\n| M5 | all-in refundable | 36.2 in [1] |"
+        units = reportctl.prose_units(markdown)
+        self.assertEqual(1, len(units))
+        self.assertNotIn("Candidate", units[0])
+        self.assertNotIn("Candidate | Price basis | Legroom", reportctl.prose_sentences(markdown))
+
+    def test_wrapped_list_item_is_one_citation_unit(self) -> None:
+        markdown = "- The first list item begins here and\n  continues on an indented line with its citation.[1]\n- Second item stands alone with enough words.[2]\n"
+        units = reportctl.prose_units(markdown)
+        self.assertEqual(2, len(units))
+        self.assertTrue(all(reportctl.citation_scope_valid(unit) for unit in units))
+
+    def test_abbreviations_do_not_split_sentences(self) -> None:
+        unit = "U.S. forces struck the site, e.g. the depot.[1] Iran Inc. responded with drones.[2]"
+        self.assertEqual(
+            ["U.S. forces struck the site, e.g. the depot.[1]", "Iran Inc. responded with drones.[2]"],
+            reportctl.split_cited_sentences(unit),
+        )
+        self.assertTrue(reportctl.citation_scope_valid(unit))
+
+    def test_closing_quote_before_citation_ends_sentence(self) -> None:
+        unit = 'The minister said "we are done."[1] Analysts disagreed with that framing.'
+        self.assertFalse(reportctl.citation_scope_valid(unit))
 
     def test_one_citation_can_cover_a_single_source_paragraph(self) -> None:
         markdown = "The first sentence comes from the source.\nThe second sentence does too.[1]\n"
@@ -274,6 +299,200 @@ class ReportCtlTests(unittest.TestCase):
                 (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
                 with self.subTest(source_type=source_type):
                     self.assertEqual([], reportctl.validate_report(target))
+
+    def mutate_fixture(self, temporary: str, mutate) -> tuple[list[str], list[str]]:
+        target = self.copy_fixture(temporary)
+        assessment = json.loads((target / "assessment.json").read_text())
+        report = (target / "report.md").read_text()
+        assessment, report = mutate(assessment, report)
+        (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
+        (target / "report.md").write_text(report)
+        warnings: list[str] = []
+        errors = reportctl.validate_report(target, warnings)
+        return errors, warnings
+
+    def test_minimal_fixture_has_no_warnings(self) -> None:
+        warnings: list[str] = []
+        self.assertEqual([], reportctl.validate_report(ROOT / "tests" / "fixtures" / "minimal-report", warnings))
+        self.assertEqual([], warnings)
+
+    def test_timestamps_after_cutoff_are_rejected(self) -> None:
+        def mutate(assessment, report):
+            assessment["sources"][0]["retrieved_at"] = "2027-01-01"
+            assessment["claims"][0]["last_checked"] = "2027-01-01T00:00:00Z"
+            assessment["evidence"][0]["captured_at"] = "2027-01-01T00:00:00Z"
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertIn("sources[0].retrieved_at is after the report cutoff", errors)
+        self.assertIn("claims[0].last_checked is after the report cutoff", errors)
+        self.assertIn("evidence[0].captured_at is after the report cutoff", errors)
+
+    def test_publication_after_retrieval_is_rejected(self) -> None:
+        def mutate(assessment, report):
+            assessment["sources"][0]["published_at"] = "2026-09-15"
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertIn("sources[0].published_at is after retrieved_at", errors)
+
+    def test_date_only_retrieval_on_cutoff_day_is_accepted(self) -> None:
+        def mutate(assessment, report):
+            assessment["sources"][0]["retrieved_at"] = "2026-08-31"
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertEqual([], errors)
+
+    def test_snippet_only_sources_cannot_carry_load_bearing_claims(self) -> None:
+        def mutate(assessment, report):
+            assessment["sources"][0]["access"] = "snippet"
+            assessment["sources"][0]["directness"] = "secondary"
+            assessment["claims"][0]["confidence"] = [0.5, 0.75]
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertIn("claims[0] load-bearing claim cannot rest on snippet-only sources", errors)
+
+    def test_status_and_confidence_must_cohere(self) -> None:
+        def confirmed_low(assessment, report):
+            assessment["claims"][0]["status"] = "confirmed"
+            assessment["claims"][0]["confidence"] = [0.1, 0.3]
+            return assessment, report
+
+        def unsupported_high(assessment, report):
+            assessment["claims"][0]["status"] = "unsupported"
+            assessment["claims"][0]["confidence"] = [0.9, 0.95]
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, confirmed_low)
+            self.assertTrue(any("status 'confirmed' requires confidence low >= 0.80" in error for error in errors))
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, unsupported_high)
+            self.assertTrue(any("status 'unsupported' requires confidence high <= 0.50" in error for error in errors))
+
+    def test_init_placeholders_are_rejected(self) -> None:
+        def mutate(assessment, report):
+            assessment["report"]["summary"] = "Replace with the decision-grade verdict."
+            report = report.replace("## Uncertainty", "## Competing hypotheses\n\nReplace with calibrated ranges and update triggers.[unverified]\n\n## Uncertainty")
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertIn("report.summary still contains the init placeholder", errors)
+        self.assertIn("report.md still contains init placeholder text", errors)
+
+    def test_frontmatter_title_must_match_assessment(self) -> None:
+        def mutate(assessment, report):
+            return assessment, report.replace("title: Minimal report", "title: Different title")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertIn("report.md frontmatter title differs from assessment.json", errors)
+
+    def test_hypotheses_require_a_named_alternative(self) -> None:
+        def mutate(assessment, report):
+            assessment["hypotheses"][0]["alternatives"] = []
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, _ = self.mutate_fixture(temporary, mutate)
+        self.assertIn("hypotheses[0].alternatives must name at least one credible alternative", errors)
+
+    def test_unverified_excerpt_is_a_warning_not_an_error(self) -> None:
+        def mutate(assessment, report):
+            assessment["evidence"][0]["excerpt"] = "This sentence was never verified against the source."
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, warnings = self.mutate_fixture(temporary, mutate)
+        self.assertEqual([], errors)
+        self.assertEqual(1, len(warnings))
+        self.assertIn("evidence[0].excerpt has no verified ledger quote", warnings[0])
+
+    def test_artifact_evidence_does_not_require_a_ledger_quote(self) -> None:
+        def mutate(assessment, report):
+            assessment["evidence"][0]["kind"] = "artifact"
+            assessment["evidence"][0]["excerpt"] = "Figure 2, panel B: measured latency 12 ms at p99"
+            return assessment, report
+
+        with tempfile.TemporaryDirectory() as temporary:
+            errors, warnings = self.mutate_fixture(temporary, mutate)
+        self.assertEqual([], errors)
+        self.assertEqual([], warnings)
+
+    def test_strict_validation_promotes_warnings_to_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            assessment = json.loads((target / "assessment.json").read_text())
+            assessment["evidence"][0]["excerpt"] = "This sentence was never verified against the source."
+            (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
+            lenient = subprocess.run([sys.executable, str(ROOT / "tools" / "reportctl.py"), "--root", temporary, "validate", str(target)], text=True, capture_output=True)
+            strict = subprocess.run([sys.executable, str(ROOT / "tools" / "reportctl.py"), "--root", temporary, "--json", "validate", "--strict", str(target)], text=True, capture_output=True)
+        self.assertEqual(0, lenient.returncode, lenient.stderr)
+        self.assertIn("WARNING:", lenient.stderr)
+        self.assertEqual(1, strict.returncode)
+        payload = json.loads(strict.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(any(error.startswith("strict: evidence[0].excerpt") for error in payload["errors"]))
+
+    def test_add_evidence_verifies_records_and_links_in_one_step(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            fetched = Path(temporary) / "fetched.txt"
+            fetched.write_text("Preamble.\n\nThe record states that the event occurred on schedule.\n")
+            evidence_id = reportctl.add_evidence(
+                target, 1, "The record states that the event occurred on schedule.", fetched, ["C1"], "record body", "2026-08-31T10:00:00Z"
+            )
+            self.assertEqual("E2", evidence_id)
+            ledger = json.loads((target / "sources-ledger.json").read_text())
+            self.assertEqual("The record states that the event occurred on schedule.", ledger["sources"][0]["quotes"][-1]["text"])
+            assessment = json.loads((target / "assessment.json").read_text())
+            self.assertEqual("excerpt", assessment["evidence"][1]["kind"])
+            self.assertEqual(["C1"], assessment["evidence"][1]["supports_claim_ids"])
+            warnings: list[str] = []
+            self.assertEqual([], reportctl.validate_report(target, warnings))
+            self.assertEqual([], [w for w in warnings if "E2" in w or "evidence[1]" in w])
+            with self.assertRaisesRegex(ValueError, "unknown claim id"):
+                reportctl.add_evidence(target, 1, "The record states that the event occurred on schedule.", fetched, ["C9"], "record body", "2026-08-31T10:00:00Z")
+            with self.assertRaisesRegex(ValueError, "not found verbatim"):
+                reportctl.add_evidence(target, 1, "A fabricated quotation.", fetched, ["C1"], "record body", "2026-08-31T10:00:00Z")
+
+    def test_add_evidence_refuses_source_not_listed_by_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            reportctl.add_source(target, "https://example.org/second", "Second source", "2026-08-31")
+            fetched = Path(temporary) / "fetched.txt"
+            fetched.write_text("Second source text.\n")
+            with self.assertRaisesRegex(ValueError, "does not list source 2"):
+                reportctl.add_evidence(target, 2, "Second source text.", fetched, ["C1"], "body", "2026-08-31T10:00:00Z")
+
+    def test_sensitive_scan_catches_common_api_key_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "notes.md").write_text(
+                "openai sk-proj-" + "a" * 40 + "\n"
+                "slack xoxb-1234567890-" + "b" * 24 + "\n"
+                "google AIza" + "C" * 35 + "\n"
+                "-----BEGIN PGP " + "PRIVATE KEY BLOCK-----\n"
+            )
+            with mock.patch.object(reportctl, "ROOT", root):
+                findings = reportctl.sensitive_content_errors()
+        labels = {finding.split(" in ")[0] for finding in findings}
+        self.assertEqual({"possible OpenAI-style key", "possible Slack token", "possible Google API key", "possible private key"}, labels)
+
+    def test_json_output_for_validate(self) -> None:
+        fixture = ROOT / "tests" / "fixtures" / "minimal-report"
+        result = subprocess.run([sys.executable, str(ROOT / "tools" / "reportctl.py"), "--root", str(ROOT), "--json", "validate", str(fixture)], text=True, capture_output=True, check=True)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["ok"])
+        self.assertEqual([], payload["errors"])
+        self.assertEqual([], payload["warnings"])
 
 
 if __name__ == "__main__":

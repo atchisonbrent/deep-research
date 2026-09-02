@@ -5,7 +5,13 @@
       "id": 1,
       "url": "https://example.com/source",
       "title": "Example source",
-      "accessed": "2026-08-31"
+      "accessed": "2026-08-31",
+      "quotes": [
+        {
+          "text": "The event occurred.",
+          "added": "2026-08-31"
+        }
+      ]
     }
   ]
 }

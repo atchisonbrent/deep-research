@@ -47,7 +47,7 @@ test -f "$TOOL"
 python3 "$TOOL" --help
 ```
 
-Require `$FRAMEWORK/METHODOLOGY.md`, `$FRAMEWORK/SCHEMA.md`, `$FRAMEWORK/docs/QUICKSTART.md`, and `$FRAMEWORK/tools/reportctl.py`. The required CLI contract is public and standard-library-only: global `--root <vault>` before the subcommand; `init`; `add-source`; `add-quote --from-file`; `render-sources`; `validate`; `index`; and `scan-sensitive`. If the framework or CLI contract is unavailable, stop before producing a supposedly durable report; do not hand-build substitute IDs or a Sources block.
+Require `$FRAMEWORK/METHODOLOGY.md`, `$FRAMEWORK/SCHEMA.md`, `$FRAMEWORK/docs/QUICKSTART.md`, and `$FRAMEWORK/tools/reportctl.py`. The required CLI contract is public and standard-library-only: global `--root <vault>` (and optional `--json`) before the subcommand; `init`; `add-source`; `add-quote --from-file`; `add-evidence`; `render-sources`; `validate [--strict]`; `index`; and `scan-sensitive`. If the framework or CLI contract is unavailable, stop before producing a supposedly durable report; do not hand-build substitute IDs or a Sources block.
 
 Use the repository’s current methodology and schema as authoritative. This skill defines the procedure; report-specific truth belongs in the report repository, not in the skill.
 
@@ -63,9 +63,10 @@ if ! test -f "$TOOL"; then TOOL="$REPO/tools/reportctl.py"; fi
 
 python3 "$TOOL" --root "$REPO" init --slug <slug> --title "<title>" --mode <research-mode> --domain <domain> --cutoff <ISO-8601-UTC>
 python3 "$TOOL" --root "$REPO" add-source "$REPORT" <url> --title "<title>" --accessed <ISO-date>
-python3 "$TOOL" --root "$REPO" add-quote "$REPORT" <id> --text "<verbatim>" --from-file <fetched-text-file>
+python3 "$TOOL" --root "$REPO" add-evidence "$REPORT" <id> --text "<verbatim>" --from-file <fetched-text-file> --claim <CLAIM-ID> --location "<where>" --captured-at <ISO-8601-UTC>
 python3 "$TOOL" --root "$REPO" render-sources "$REPORT"
 python3 "$TOOL" --root "$REPO" validate "$REPORT"
+python3 "$TOOL" --root "$REPO" validate --strict "$REPORT"
 python3 "$TOOL" --root "$REPO" index
 python3 "$TOOL" --root "$REPO" index --check
 python3 "$TOOL" --root "$REPO" scan-sensitive
@@ -185,7 +186,7 @@ Populate the schema-defined `claims` and short `evidence` excerpts in `assessmen
 - set `last_checked` to the real cutoff/retrieval time;
 - preserve scope, date, denominator, and attribution for numbers.
 
-Use `reportctl.py add-quote --from-file` for cited sources when fetched text is available. It verifies case-sensitive wording with whitespace normalization. Add the separate claim-facing evidence record to `assessment.json`; the ledger proves quotation identity while the assessment declares what the quotation supports. Do not quote a snippet, paraphrase into the quote field, or store full copyrighted articles in Git.
+Save the fetched page text to a file under the report's `evidence/` directory (or a temporary path) and use `reportctl.py add-evidence --from-file` for every excerpt: it verifies case-sensitive wording with whitespace normalization, records the quote in the ledger, and appends the claim-facing evidence record in one step, so the validator can prove the excerpt was checked. Use `add-quote --from-file` only when the evidence entry already exists. For non-text evidence—a figure, table cell, dataset row, or commit—write the evidence entry with `"kind": "artifact"` and a precise `location`. An `excerpt` without a verified ledger quote is a validation warning today and an error under `--strict`; never paste a snippet, paraphrase into the quote field, or store full copyrighted articles in Git.
 
 Completion: the validator can trace every load-bearing factual claim to a source and evidence excerpt.
 
@@ -229,7 +230,7 @@ Completion: citation IDs are stable, scoped to the claims they support, semantic
 Run deterministic checks in this order:
 
 1. run `reportctl.py --root "$REPO" render-sources` to generate the cited subset mechanically;
-2. run `reportctl.py --root "$REPO" validate` and repair semantic citation scope, unknown IDs, source-block drift, evidence/claim mismatches, independence errors, and over-citation;
+2. run `reportctl.py --root "$REPO" validate` and repair semantic citation scope, unknown IDs, source-block drift, evidence/claim mismatches, independence errors, temporal incoherence, status/confidence incoherence, leftover placeholders, and over-citation; then run `validate --strict` and treat any unverified-excerpt warning as work to finish, not noise;
 3. regenerate and check `reports/index.md`;
 4. run the pinned framework unit tests, `scan-sensitive`, and `git diff --check`.
 
@@ -293,7 +294,7 @@ Completion: local and remote branches match, CI is green, and the report is brow
 - [ ] Mode-appropriate primary, independent, specialist, stakeholder, and contradictory paths sought
 - [ ] Independence groups prevent duplicate corroboration
 - [ ] Publisher and author judgments have evidence or say `unknown`
-- [ ] Every load-bearing factual claim has a short verified excerpt or artifact coordinate
+- [ ] Every load-bearing factual claim has a short excerpt verified through `add-evidence`/`add-quote`, or a declared `artifact` coordinate; `validate --strict` passes
 - [ ] Observed, reported, assessed, forecast, and unknown are distinguishable
 - [ ] Forecast/causal hypotheses use ranges, alternatives, basis claims, falsifiers, and update triggers; descriptive research uses a criteria matrix
 - [ ] Material requirement changes triggered a full re-gate and a cutoff/lineage-correct draft or successor

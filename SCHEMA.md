@@ -19,6 +19,8 @@
 
 `draft`, `reviewed`, `superseded`
 
+Scaffold placeholders from `init` (`Replace with …`) are rejected wherever they remain in `report.md`, `report.summary`, or `report.questions`.
+
 `reviewed` requires a passed independent review record. `superseded` requires a `lineage.superseded_by` target. Lineage values are repository-relative report directories under `reports/`; the validator checks that they exist and that successor cutoffs move forward.
 
 ### Research mode
@@ -65,7 +67,7 @@ Hypotheses use:
 {"low": 0.35, "central": 0.50, "high": 0.65}
 ```
 
-Each hypothesis also retains a `resolution` object. It begins as `open`; a later update may mark it `resolved` with an outcome and date or `superseded` by a better-framed hypothesis. This preserves misses and creates an actual calibration record instead of a museum of unscored forecasts.
+Each hypothesis must name at least one credible `alternatives` entry; a hypothesis with no alternative is an assertion, not a hypothesis. Each hypothesis also retains a `resolution` object. It begins as `open`; a later update may mark it `resolved` with an outcome and date or `superseded` by a better-framed hypothesis. This preserves misses and creates an actual calibration record instead of a museum of unscored forecasts.
 
 All values are between 0 and 1 and ordered. Ranges communicate epistemic uncertainty; they are not mechanically calculated source-vote totals.
 
@@ -83,7 +85,24 @@ Per-author expertise remains `unknown` unless `expertise_evidence` explains the 
 
 Evidence entries contain short public excerpts or artifact coordinates—not full articles. Each entry names one source and one or more claims. The validator checks referential integrity; the research workflow must verify verbatim text against retrieved source material before publication.
 
+Each entry carries a `kind`:
+
+- `excerpt` (default when omitted): verbatim text from the source. The excerpt must match, after whitespace normalization, a `quotes[].text` entry recorded on the same source in `sources-ledger.json`. Those ledger quotes are written only by `reportctl.py add-quote --from-file` or `add-evidence`, both of which refuse text that is not found verbatim in the fetched source file. An unmatched excerpt is an advisory **warning** in schema 1 and becomes an error under `validate --strict` and in the next schema revision.
+- `artifact`: a coordinate for non-text evidence—figure, table cell, dataset row, commit hash, timestamp in a recording, or a specification-table value. Artifacts are exempt from the ledger-quote match but must still name a precise `location`.
+
 An evidence source must also appear in every claim it supports. This prevents a quote from one source being attached to a claim whose declared source set says something else.
+
+## Temporal coherence
+
+The cutoff is the report's epistemic boundary, so the validator rejects any `retrieved_at`, `captured_at`, or `last_checked` value later than `report.cutoff`, and any `published_at` later than its source's `retrieved_at`. Date-only values compare by calendar day.
+
+## Status and confidence
+
+Claim `status` and `confidence` must agree: `confirmed` requires low ≥ 0.80; `probable` requires low ≥ 0.50; `contested` requires high ≤ 0.90; `unsupported` requires high ≤ 0.50; `unknown` claims must span at least 0.30. These are coherence guardrails, not a formula for choosing the interval.
+
+## Access
+
+A load-bearing `fact` or `attributed` claim cannot rest only on `snippet`-access sources. A snippet supports its literal text and nothing more.
 
 ## Citation ledger
 
