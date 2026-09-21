@@ -10,6 +10,12 @@ All notable changes to this project are documented here. This project follows [S
 
 
 
+
+## [0.2.1] - 2026-09-21
+
+### Features
+
+- support explicit evidence-backed qualitative claim confidence
 ## [0.2.0] - 2026-09-02
 
 ### Breaking Changes
@@ -81,3 +87,4 @@ All notable changes to this project are documented here. This project follows [S
 [0.1.6]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.6
 [0.1.7]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.7
 [0.2.0]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.2.0
+[0.2.1]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.2.1

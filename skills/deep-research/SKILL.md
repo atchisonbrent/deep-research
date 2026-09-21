@@ -5,7 +5,7 @@ license: MIT
 compatibility: Hermes Agent, Claude Code, Codex, and OpenCode with Python 3.11+, Git, shell access, and web retrieval
 metadata:
   author: Brent Atchison (atchisonbrent), Helion
-  version: "0.2.0" # x-release-version
+  version: "0.2.1" # x-release-version
 ---
 
 # Deep Research
