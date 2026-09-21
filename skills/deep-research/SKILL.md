@@ -199,9 +199,32 @@ Generate the Sources block mechanically with `reportctl.py render-sources`; neve
 
 Completion: citation IDs are stable, scoped to the claims they support, semantically accurate, readable, and generated source URLs match the ledger.
 
-### 9. Run both validation layers
+### 9. Edit prose, then run both validation layers
 
-Run deterministic checks in this order:
+Automatically perform a restrained prose pass after synthesis and before final
+validation and independent review; the user need not request it. When available,
+load the `humanizer` skill in embedded mode and return only finished prose, not
+its draft/critique ceremony. Without that optional skill, apply the same checks
+below; do not install tools or invoke a second model just for copyediting.
+
+Remove empty introductions, inflated framing, redundant conclusions and awkward
+phrasing only where readability improves. Preserve supported claims, attribution,
+negation, uncertainty, legal distinctions, dates, quantities, denominators,
+quotations and citation scope. Keep useful contrasts, lists and qualifications.
+Do not invent facts, citations or first-person experience for vividness. Leave
+code, commands, paths, identifiers, URLs, metadata and evidence records untouched.
+These research constraints override generic style rules and examples.
+
+Compare the edited prose with the original and its claim/evidence ledger. Reject
+an edit that changes meaning or loses a supported claim; unchanged text is a valid
+result. Numeric and citation-token checks can catch some errors but cannot prove
+semantic equivalence. For example, keep the distinction between a reported count,
+a verified count and a demonstrated benefit, and between a null finding and proof
+of zero effect. This pass does not authorize retrospective changes to published
+reports. If later edits affect an approved evidence chain, use the existing
+re-review and cutoff/lineage rules.
+
+Run deterministic checks on the edited report in this order:
 
 1. `reportctl.py --root "$REPO" render-sources` to generate the cited subset mechanically;
 2. `reportctl.py --root "$REPO" validate` and repair semantic citation scope, unknown IDs, source-block drift, evidence/claim mismatches, independence errors, temporal incoherence, status/confidence incoherence, leftover placeholders, and over-citation; then `validate --strict` and treat any unverified-excerpt warning as work to finish, not noise;
