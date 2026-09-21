@@ -215,6 +215,14 @@ Do not invent facts, citations or first-person experience for vividness. Leave
 code, commands, paths, identifiers, URLs, metadata and evidence records untouched.
 These research constraints override generic style rules and examples.
 
+Before editing, retain the synthesized draft as a recoverable Git revision or
+local review copy. Edit report-body prose only: assessment, ledger, evidence,
+quoted text, code and metadata are outside this pass. Preserve population,
+geography, jurisdiction, comparison class, period, metric definitions and their
+qualifiers. Keep tables and their citation-bearing rows, structural markup,
+mode-required headings and unresolved placeholders intact; empty introductions
+means dispensable boilerplate, not an unfinished required section.
+
 Compare the edited prose with the original and its claim/evidence ledger. Reject
 an edit that changes meaning or loses a supported claim; unchanged text is a valid
 result. Numeric and citation-token checks can catch some errors but cannot prove
@@ -233,11 +241,11 @@ Run deterministic checks on the edited report in this order:
 
 Do not lower thresholds merely to make a draft pass. If a paragraph mixes evidence paths, cite locally or split it; if it uses one source set, cite once at the end. If a sentence is analytical judgment rather than externally checkable fact, classify it correctly rather than decorating it with irrelevant citations.
 
-Completion: the pinned framework's report validator (including `--strict`), tests, index check, sensitive-content scan, and Git checks pass.
+Completion: the pinned framework's report validator (including `--strict`), tests, index check, sensitive-content scan, and Git checks pass. Record in the existing review notes the pre-edit revision/copy and completed semantic comparison, or that the pass made no changes. Supply that reference and the prose diff with any consequential review; do not invent assessment schema fields.
 
 ### 10. Independently challenge consequential work
 
-For high-impact, high-cost, strongly contested, architecture-shaping, investment-relevant, or forecast-heavy research, obtain an independent review from a different model or a human reviewer through whatever bounded, credential-free route the current agent provides. Freeze the report cutoff and exact staged revision before review. The reviewer receives only the methodology, report, assessment, and ledger—never credentials or secret material. The author may clarify scope but must not answer on the reviewer's behalf or steer it toward a preferred verdict.
+For high-impact, high-cost, strongly contested, architecture-shaping, investment-relevant, or forecast-heavy research, obtain an independent review from a different model or a human reviewer through whatever bounded, credential-free route the current agent provides. Freeze the report cutoff and exact staged revision before review. The reviewer receives only the methodology, report, assessment, ledger, and prose-pass pre-edit reference/diff—never credentials or secret material. The author may clarify scope but must not answer on the reviewer's behalf or steer it toward a preferred verdict.
 
 Ask the reviewer to find:
 
@@ -290,6 +298,7 @@ Completion: local and remote branches match, CI is green, and the report is brow
 - [ ] Material requirement changes triggered a full re-gate and a cutoff/lineage-correct draft or successor
 - [ ] Citations were registered at retrieval and attached once per honest clause, sentence, paragraph, or table-row scope
 - [ ] `render-sources` generated a Sources block matching the report's cited subset
+- [ ] Prose-pass semantic comparison and pre-edit reference recorded, or no-change recorded; required structure and evidence artifacts preserved
 - [ ] Pinned `reportctl.py validate`, index check, sensitive scan, framework unit tests, and `git diff --check` pass
 - [ ] Consequential reports received independent adversarial review
 - [ ] Commit, push, remote state, and CI were verified
