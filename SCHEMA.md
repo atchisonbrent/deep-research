@@ -65,7 +65,24 @@ Each mode has a reference file under `skills/deep-research/references/modes/` wh
 
 ## Probability ranges
 
-Claims use a two-element `confidence` array: `[low, high]`.
+Claims default to `confidence_mode: "quantitative"` (also the default when omitted)
+and use a two-element `confidence` array: `[low, high]`.
+
+Non-forecast claims may explicitly select `confidence_mode: "qualitative"`.
+They must omit `confidence`, provide non-empty `confidence_limitations`, and
+retain a non-empty rationale and a non-empty list of textual falsifiers.
+`status` expresses the qualitative assessment; it is not a hidden probability.
+Missing confidence without explicit opt-in remains an error. Forecast claims
+and hypothesis probabilities remain numerical. Qualitative mode does not waive
+source, independence-group-count, evidence, citation, cutoff or review checks. Numerical
+status floors/ceilings and interval-width rules apply only to numerical ranges;
+confirmed factual/attributed claims retain their evidence requirements in either mode.
+
+Example fields on an otherwise complete non-forecast claim:
+
+```json
+{"confidence_mode": "qualitative", "confidence_limitations": "The primary record verifies what was reported, not its causal effect.", "rationale": "Direct record supports the bounded attribution.", "falsifiers": ["Correction or withdrawal of the record."]}
+```
 
 Hypotheses use:
 
@@ -106,7 +123,7 @@ The cutoff is the report's epistemic boundary, so the validator rejects any `ret
 
 ## Status and confidence
 
-Claim `status` and `confidence` must agree: `confirmed` requires low ≥ 0.80; `probable` requires low ≥ 0.50; `contested` requires high ≤ 0.90; `unsupported` requires high ≤ 0.50; `unknown` claims must span at least 0.30. These are coherence guardrails, not a formula for choosing the interval.
+For quantitative claims, `status` and `confidence` must agree: `confirmed` requires low ≥ 0.80; `probable` requires low ≥ 0.50; `contested` requires high ≤ 0.90; `unsupported` requires high ≤ 0.50; `unknown` claims must span at least 0.30. These are coherence guardrails, not a formula for choosing the interval.
 
 ## Access
 

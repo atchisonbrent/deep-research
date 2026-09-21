@@ -644,7 +644,16 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         require(errors, claim.get("kind") in CLAIM_KINDS, f"{where}.kind invalid")
         require(errors, claim.get("status") in CLAIM_STATUS, f"{where}.status invalid")
         require(errors, claim.get("importance") in IMPORTANCE, f"{where}.importance invalid")
-        require(errors, valid_range(claim.get("confidence")), f"{where}.confidence must be [low, high] within 0..1")
+        confidence_mode = claim.get("confidence_mode", "quantitative")
+        require(errors, confidence_mode in ("quantitative", "qualitative"), f"{where}.confidence_mode invalid")
+        if confidence_mode == "qualitative":
+            require(errors, "confidence" not in claim, f"{where} qualitative mode must omit numerical confidence")
+            require(errors, claim.get("kind") != "forecast", f"{where} forecast requires quantitative confidence")
+            require(errors, text(claim.get("confidence_limitations")), f"{where}.confidence_limitations must be non-empty")
+            falsifiers = claim.get("falsifiers")
+            require(errors, isinstance(falsifiers, list) and bool(falsifiers) and all(text(item) for item in falsifiers), f"{where} qualitative mode requires non-empty falsifiers")
+        else:
+            require(errors, valid_range(claim.get("confidence")), f"{where}.confidence must be [low, high] within 0..1")
         for key in ("source_ids", "contradicting_source_ids", "falsifiers"):
             require(errors, isinstance(claim.get(key), list), f"{where}.{key} must be a list")
             if not isinstance(claim.get(key), list):

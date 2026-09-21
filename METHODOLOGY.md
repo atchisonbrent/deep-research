@@ -1,5 +1,11 @@
 # Deep Research Methodology
 
+Non-forecast claims may opt into the explicit qualitative contract in
+[SCHEMA.md](SCHEMA.md). Numerical status floors, independence caps and interval
+widths apply only to numerical ranges. Qualitative status is an evidence-backed
+judgment, not a concealed probability; source-group, evidence and citation checks
+remain mandatory.
+
 ## Objective
 
 Produce the best-supported decision-grade answer to a substantial research question while making the evidence chain, uncertainty, source dependence, analytical judgment, and likely failure modes visible.

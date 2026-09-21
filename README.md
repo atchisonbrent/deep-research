@@ -1,5 +1,11 @@
 # Deep Research
 
+Non-forecast claims may opt into the explicit qualitative contract in
+[SCHEMA.md](SCHEMA.md). Numerical status floors, independence caps and interval
+widths apply only to numerical ranges. Qualitative status is an evidence-backed
+judgment, not a concealed probability; source-group, evidence and citation checks
+remain mandatory.
+
 An open framework for AI-assisted, versioned, evidence-backed deep research across technology, practice, markets, companies, people and organizations, policy, law, science, security, history, products, forecasts, and modern events. Sixteen research modes each carry their own evidence hierarchy, gates, and report skeleton.
 
 This repository is designed for:

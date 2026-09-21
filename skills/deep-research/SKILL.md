@@ -241,6 +241,15 @@ Run deterministic checks on the edited report in this order:
 
 Do not lower thresholds merely to make a draft pass. If a paragraph mixes evidence paths, cite locally or split it; if it uses one source set, cite once at the end. If a sentence is analytical judgment rather than externally checkable fact, classify it correctly rather than decorating it with irrelevant citations.
 
+Required checks block completion. Run the whole consumer CI. Never fabricate
+ranges, remove required metadata or bypass checks. For schema conflicts, obtain
+framework-owner approval, test acceptance/rejection, review/publish the fix, update
+consumer pins and verify actual CI. Preserve failed receipts; record recovery separately.
+Qualitative claims retain rationale, limitations, falsifiers and evidence; forecasts
+and hypotheses retain numerical uncertainty. Pursue available outcome and
+counterevidence threads before declaring effects unknown. Personal accounts are
+not prevalence estimates; ancestry is not citizenship; conditional risk is not a forecast.
+
 Completion: the pinned framework's report validator (including `--strict`), tests, index check, sensitive-content scan, and Git checks pass. Record in the existing review notes the pre-edit revision/copy and completed semantic comparison, or that the pass made no changes. Supply that reference and the prose diff with any consequential review; do not invent assessment schema fields.
 
 ### 10. Independently challenge consequential work

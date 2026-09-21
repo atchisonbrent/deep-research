@@ -27,6 +27,74 @@ class ReportCtlTests(unittest.TestCase):
         shutil.copytree(fixture, target)
         return target
 
+    def test_explicit_qualitative_confidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            path = target / "assessment.json"
+            assessment = json.loads(path.read_text())
+            claim = assessment["claims"][0]
+            claim.pop("confidence")
+            claim["confidence_mode"] = "qualitative"
+            claim["confidence_limitations"] = "Direct record supports attribution, not a causal estimate."
+            path.write_text(json.dumps(assessment))
+            self.assertEqual([], reportctl.validate_report(target))
+
+    def test_qualitative_confidence_rejects_invalid_contracts(self) -> None:
+        cases = [
+            ({"confidence_mode": "typo"}, "confidence_mode invalid"),
+            ({"confidence_mode": None}, "confidence_mode invalid"),
+            ({"confidence_mode": []}, "confidence_mode invalid"),
+            ({"kind": "forecast"}, "forecast requires quantitative"),
+            ({"confidence": [0.8, 0.9]}, "must omit numerical confidence"),
+            ({"confidence": None}, "must omit numerical confidence"),
+            ({"confidence_limitations": ""}, "confidence_limitations"),
+            ({"falsifiers": []}, "non-empty falsifiers"),
+            ({"falsifiers": [""]}, "non-empty falsifiers"),
+            ({"rationale": ""}, "rationale"),
+            ({"source_ids": []}, "requires supporting sources"),
+        ]
+        for changes, message in cases:
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory() as temporary:
+                target = self.copy_fixture(temporary)
+                path = target / "assessment.json"
+                assessment = json.loads(path.read_text())
+                claim = assessment["claims"][0]
+                claim.pop("confidence")
+                claim.update(confidence_mode="qualitative", confidence_limitations="Attribution only.")
+                claim.update(changes)
+                path.write_text(json.dumps(assessment))
+                self.assertTrue(any(message in error for error in reportctl.validate_report(target)))
+
+    def test_qualitative_retains_evidence_guards(self) -> None:
+        for mutation, message in [("indirect", "two independence groups"), ("snippet", "snippet"), ("missing", "evidence"), ("ledger", "URL differs")]:
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                target = self.copy_fixture(temporary)
+                path = target / "assessment.json"
+                assessment = json.loads(path.read_text())
+                claim = assessment["claims"][0]
+                claim.pop("confidence")
+                claim.update(confidence_mode="qualitative", confidence_limitations="Attribution only.")
+                if mutation == "indirect":
+                    claim["status"] = "confirmed"
+                    assessment["sources"][0]["directness"] = "secondary"
+                elif mutation == "snippet":
+                    assessment["sources"][0]["access"] = "snippet"
+                elif mutation == "missing":
+                    assessment["evidence"] = []
+                else:
+                    assessment["sources"][0]["url"] = "https://example.org/wrong"
+                path.write_text(json.dumps(assessment))
+                self.assertTrue(any(message in error for error in reportctl.validate_report(target)))
+
+    def test_missing_confidence_still_requires_explicit_opt_in(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self.copy_fixture(temporary)
+            path = target / "assessment.json"
+            assessment = json.loads(path.read_text())
+            assessment["claims"][0].pop("confidence")
+            path.write_text(json.dumps(assessment))
+            self.assertTrue(any("confidence must be" in error for error in reportctl.validate_report(target)))
+
     def test_repository_with_no_reports_has_stable_index(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             with mock.patch.object(reportctl, "REPORTS", Path(temporary) / "reports"):
