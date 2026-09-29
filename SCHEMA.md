@@ -6,7 +6,7 @@
 
 `schema_version` describes the **shape** of `assessment.json`. Validity is decided by the pinned framework release: newer releases add rules (temporal coherence, status/confidence guardrails, snippet limits, placeholder rejection) that older reports may fail. Consumers pin an exact framework tag; a report is "valid" relative to that tag. Rule additions that would fail previously valid reports are released as a **minor** version bump (a breaking change under 0.x semantics) and called out in `CHANGELOG.md`; patch releases never turn a valid report invalid. Where a rule can be phased in, it ships first as a warning and becomes an error at the following minor version, as the unverified-excerpt rule does. The 0.2.0 hardening (temporal coherence, status/confidence guardrails, snippet limits, placeholder rejection, required hypothesis alternatives, frontmatter title check) shipped as immediate errors in that minor release after verifying every existing consumer report against it.
 
-The 0.3.0 rules (snapshot-bound quotations, claim anchors, search log, sought counter-evidence, source dispositions, primary tracing, attribution/truth separation, hypothesis resolution dates, semantic audit and coverage review; see [Rule codes](#rule-codes)) ship as **warnings**, so `validate --strict` fails reports written before them while default `validate` still passes. Their structural errors—a malformed search log, an anchor naming no claim, a quotation bound to an unrecorded or altered snapshot—are immediate errors, because no pre-0.3.0 report contains those fields.
+The 0.3.0 rules (snapshot-bound quotations, claim anchors, search log, sought counter-evidence, source dispositions, primary tracing, attribution/truth separation, hypothesis resolution dates, semantic audit and coverage review; see [Rule codes](#rule-codes)) ship as **warnings**, so `validate --strict` fails reports written before them while default `validate` still passes. Their structural errors—a malformed search log, a citation-adjacent anchor naming no claim, a quotation bound to an unrecorded or altered snapshot—are immediate errors, because they can arise only from content written for 0.3.0: pre-0.3.0 reports lack those fields, and anchor recognition deliberately ignores brace-wrapped text that is not placed like an anchor (see [Claim anchors](#claim-anchors)). A frozen v0.2.1 fixture in the test suite guards this.
 
 ## Top-level fields
 
@@ -133,11 +133,13 @@ A snapshot is the extracted text of a retrieved source, canonicalized (line endi
 
 Stores are searched in order: `<report>/evidence/snapshots/` (committed; redistributable text only) and then `$DEEP_RESEARCH_SNAPSHOTS` or `<vault>/.snapshots/` (private and Git-ignored). `add-evidence --snapshot <digest|prefix|latest>` and `add-quote --snapshot …` refuse text absent from the snapshot and bind the quotation with `snapshot` and `offset`. `--from-file` remains available and records `file_sha256`, but such quotations are unbound.
 
+`fetch` and `capture` refuse to write the private store when it sits inside a Git work tree that does not ignore it, so full source text cannot be committed by accident; add `.snapshots/` to the vault's `.gitignore` or point `DEEP_RESEARCH_SNAPSHOTS` outside the repository. Redirects are followed only to http(s) URLs. `scan-sensitive` skips the private store, which is not repository content.
+
 During validation, a bound quotation whose snapshot is present is re-verified: the stored text must match its hash and contain the quotation. When the snapshot is absent (for example in CI without the private store), the binding is checked structurally and a note reports how many snapshots were unavailable; `validate --verify-snapshots` turns absence into an error. Snapshot `retrieved_at` may not follow the cutoff.
 
 ## Claim anchors
 
-Report prose marks where it asserts a claim or hypothesis by placing its ID in braces, normally after the citation group: `…fell 24%.[2]{C3}` or `{C3,C5}`. Anchors are matched as `{ID}` or a comma-separated list, where each ID matches the claim-ID pattern; any brace-wrapped uppercase identifier in prose is treated as an anchor. Within a citation unit (paragraph, list item or table row) containing anchors:
+Report prose marks where it asserts a claim or hypothesis by placing its ID in braces directly after the citation group: `…fell 24%.[2]{C3}` or `[2]{C3,C5}`. A brace group of claim-pattern IDs is an anchor when it directly follows a citation group or another anchor, or when every ID in it names an existing claim or hypothesis (so `…below certainty {H1}.` also works). Other brace-wrapped text, such as `{JSON}` in ordinary prose, is left alone, and inline code and fenced code blocks are never anchors. Within a citation unit (paragraph, list item or table row) containing anchors:
 
 - every anchor must name a claim or hypothesis (a hypothesis stands for its basis claims);
 - every cited source must appear in an anchored claim's `source_ids` or `contradicting_source_ids`;
@@ -163,7 +165,7 @@ Claims and hypotheses reference counter-searches through `counter_search_ids`; c
 These rules make depth reviewable without pretending to measure it:
 
 - every report question should have at least one logged search;
-- every load-bearing `inference` or `forecast` claim should list `contradicting_source_ids` or link a `counter` search, and every hypothesis should link a `counter` search;
+- every load-bearing `inference` or `forecast` claim should list `contradicting_source_ids` or link a `counter` search, and every hypothesis should link a `counter` search; a counter-search counts only when `results_considered` is at least 1;
 - `missing-primary`, `access` and `unresolved-contradiction` gaps should list `search_ids`;
 - every assessment source that `report.md` does not cite should carry a `disposition` (`background-only`, `superseded-by-better-source`, `duplicate`, `irrelevant`, `failed-retrieval`, `rejected-unreliable`) with a `disposition_note`; `cited` is also accepted and must be true;
 - a load-bearing claim supported only by `secondary` or `commentary` sources should be traced to primary evidence or named in a `missing-primary` gap's `claim_ids`.
@@ -260,7 +262,7 @@ Validator messages for rules added in 0.3.0 start with a code:
 | P2 | malformed snapshot record, or quotation bound to an unrecorded snapshot | error |
 | P3 | stored snapshot altered, or bound quotation absent from it | error |
 | P4 | bound snapshot missing locally under `--verify-snapshots` | error (flag only) |
-| A1 | anchor names no claim or hypothesis | error |
+| A1 | citation-adjacent anchor names no claim or hypothesis | error |
 | A2 | anchored passage cites a foreign source, or a factual claim without its own support | error |
 | A3 | load-bearing claim not anchored in the prose | warning |
 | D1 | no search log, question without a search, or malformed search entry | warning / error when malformed |

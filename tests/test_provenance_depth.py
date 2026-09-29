@@ -428,6 +428,136 @@ class CalibrationAndAuditTests(Base):
         self.assertClean()
 
 
+class ReviewFindingRegressionTests(Base):
+    """Regressions for the independent review of f3e77f0."""
+
+    def legacy(self) -> Path:
+        target = self.root / "reports" / "2026" / "08" / "legacy-v0-2-1-report"
+        shutil.copytree(ROOT / "tests" / "fixtures" / "legacy-v0-2-1-report", target)
+        return target
+
+    def test_pre_030_report_still_passes_default_validate_with_brace_text(self) -> None:
+        target = self.legacy()
+        path = target / "report.md"
+        path.write_text(path.read_text().replace(
+            "Independent corroboration has not yet been located.[1]",
+            "Independent corroboration of the `{JSON}` record or the {API} feed has not yet been located.[1]",
+        ))
+        warnings: list[str] = []
+        self.assertEqual([], reportctl.validate_report(target, warnings))
+        self.assertTrue(any(w.startswith("[P1]") for w in warnings))
+        self.assertIn("{API}", reportctl.reader_text(target))
+        self.assertIn("`{JSON}`", reportctl.reader_text(target))
+
+    def test_citation_adjacent_unknown_anchor_is_still_an_error(self) -> None:
+        self.markdown("[1]{C1}", "[1]{C1}{C7}")
+        errors, _ = self.validate()
+        self.assertTrue(any("[A1]" in e and "C7" in e for e in errors), errors)
+
+    def test_standalone_known_anchor_is_recognized_and_stripped(self) -> None:
+        self.markdown("That absence keeps confidence below certainty.[1]", "That absence keeps confidence below certainty {H1}.[1]")
+        errors, _ = self.validate()
+        self.assertEqual([], errors)
+        self.assertIn("That absence keeps confidence below certainty.[1]", reportctl.reader_text(self.report))
+
+    def test_fenced_code_keeps_anchor_like_text(self) -> None:
+        path = self.report / "report.md"
+        path.write_text(path.read_text().replace("## Uncertainty", "```text\nexample.[1]{C1}\n```\n\n## Uncertainty"))
+        self.assertIn("example.[1]{C1}", reportctl.reader_text(self.report))
+
+    def test_hypothesis_anchor_limits_citations_to_basis_sources(self) -> None:
+        reportctl.add_source(self.report, "https://example.org/other", "Other", "2026-08-31")
+        assessment = self.assessment()
+        assessment["sources"].append(dict(assessment["sources"][0], id=2, url="https://example.org/other", title="Other"))
+        self.save(assessment)
+        self.markdown("That absence keeps confidence below certainty.[1]", "That absence keeps confidence below certainty.[2]{H1}")
+        reportctl.render_sources(self.report)
+        errors, _ = self.validate()
+        self.assertTrue(any("[A2]" in e and "H1" in e for e in errors), errors)
+
+    def test_redirect_to_non_http_scheme_is_refused_before_connecting(self) -> None:
+        class Redirect(http.server.BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                self.send_response(302)
+                self.send_header("Location", "ftp://127.0.0.1:1/secret.txt")
+                self.end_headers()
+
+            def log_message(self, *args: object) -> None:
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Redirect)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        with self.assertRaisesRegex(ValueError, "non-http"):
+            snapshots.fetch(f"http://127.0.0.1:{server.server_address[1]}/x")
+
+    def test_private_store_inside_unignored_git_tree_is_refused(self) -> None:
+        if not shutil.which("git"):
+            self.skipTest("git unavailable")
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        captured = self.root / "capture.txt"
+        captured.write_text("The event occurred.\n")
+        with self.assertRaisesRegex(ValueError, "not ignored"):
+            reportctl.capture_source(self.report, "https://example.com/source", None, captured, "2026-08-31T10:40:00Z", None, "vault")
+        self.assertFalse((self.root / ".snapshots").exists())
+        (self.root / ".gitignore").write_text(".snapshots/\n")
+        reportctl.capture_source(self.report, "https://example.com/source", None, captured, "2026-08-31T10:40:00Z", None, "vault")
+        self.assertTrue(any((self.root / ".snapshots").glob("*.txt")))
+
+    def test_report_store_commits_text_but_not_raw_bytes(self) -> None:
+        captured = self.root / "capture.txt"
+        captured.write_text("Public-domain record text.\n")
+        _, digest = reportctl.capture_source(self.report, "https://example.gov/record", "Record", captured, "2026-08-31T10:40:00Z", None, "report")
+        store = self.report / "evidence" / "snapshots"
+        self.assertTrue((store / f"{digest}.txt").is_file())
+        self.assertFalse((store / "raw").exists())
+        self.assertEqual("report", self.ledger()["sources"][-1]["snapshots"][0]["store"])
+
+    def test_fetch_checks_title_before_touching_the_network(self) -> None:
+        with mock.patch.object(snapshots, "fetch", side_effect=AssertionError("network used")):
+            with self.assertRaisesRegex(ValueError, "--title is required"):
+                reportctl.fetch_source(self.report, "https://example.org/new", None, "vault")
+
+    def test_counter_search_with_nothing_inspected_does_not_count(self) -> None:
+        assessment = self.assessment()
+        assessment["searches"].append({"id": "S3", "question": 1, "purpose": "counter", "engine": "e", "query": "q", "run_at": "2026-08-31T09:50:00Z", "results_considered": 0, "source_ids": []})
+        claim = dict(assessment["claims"][0], id="C2", kind="inference", statement="Inference.", counter_search_ids=["S3"])
+        assessment["claims"].append(claim)
+        self.save(assessment)
+        _, warnings = self.validate()
+        self.assertTrue(any("[D2]" in w and "C2" in w for w in warnings), warnings)
+
+    def test_crafted_snapshot_digest_cannot_escape_the_store(self) -> None:
+        (self.report / "evidence" / "x.txt").write_text("outside")
+        self.assertIsNone(snapshots.find_snapshot(self.root, self.report, "../x"))
+
+    def test_record_audit_refuses_malformed_items(self) -> None:
+        verdicts = self.root / "verdicts.json"
+        verdicts.write_text(json.dumps({"items": ["not an object"]}))
+        with self.assertRaisesRegex(ValueError, "claim_id"):
+            reportctl.record_audit(self.report, verdicts, "reviewer")
+
+    def test_search_source_ids_reject_booleans(self) -> None:
+        assessment = self.assessment()
+        assessment["searches"][0]["source_ids"] = [True]
+        self.save(assessment)
+        errors, _ = self.validate()
+        self.assertTrue(any("source_ids must reference assessment sources" in e for e in errors), errors)
+
+    def test_cli_reader_and_due(self) -> None:
+        env = {"DEEP_RESEARCH_SNAPSHOTS": str(self.root / ".snapshots"), "PATH": "/usr/bin:/bin"}
+        tool = str(ROOT / "tools" / "reportctl.py")
+        out = self.root / "reader.md"
+        subprocess.run([sys.executable, tool, "--root", str(self.root), "reader", str(self.report), "--out", str(out)], check=True, env=env, capture_output=True)
+        self.assertNotIn("{C1}", out.read_text())
+        assessment = self.assessment()
+        assessment["hypotheses"][0]["resolve_by"] = "2026-09-01"
+        self.save(assessment)
+        due = subprocess.run([sys.executable, tool, "--root", str(self.root), "--json", "due", "--as-of", "2026-10-01"], check=True, env=env, capture_output=True, text=True)
+        self.assertEqual(["H1"], [row["hypothesis"] for row in json.loads(due.stdout)["hypotheses"]])
+
+
 class JsonSchemaSyncTests(unittest.TestCase):
     def test_published_schemas_match_validator_vocabularies(self) -> None:
         assessment = json.loads((ROOT / "schema" / "assessment.schema.json").read_text())

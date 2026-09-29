@@ -24,6 +24,8 @@ Keep actual reports in a separate private repository and pin this framework:
 
 ```bash
 git submodule add https://github.com/atchisonbrent/deep-research.git framework
+echo .snapshots/ >> .gitignore   # private source-text store; never commit it
+git add .gitignore
 git commit -m "chore: pin deep-research framework"
 ```
 
@@ -82,7 +84,7 @@ python3 tools/reportctl.py capture "$REPORT" https://example.com/source \
   --from-file /tmp/source.txt --note "browser render after consent wall"
 ```
 
-Snapshots go to the private, Git-ignored `.snapshots/` store (override with `DEEP_RESEARCH_SNAPSHOTS`). Add `--store report` only for text you may redistribute, such as US federal government works; it is then committed under the report's `evidence/snapshots/`.
+Snapshots go to the private `.snapshots/` store at the vault root (override with `DEEP_RESEARCH_SNAPSHOTS`). A private vault must ignore it—`echo .snapshots/ >> .gitignore`—and `fetch`/`capture` refuse to write an unignored store inside a Git work tree. Add `--store report` only for text you may redistribute, such as US federal government works; it is then committed under the report's `evidence/snapshots/`.
 
 Populate the matching source record in `assessment.json`: publisher, source type, access, directness, independence group and rationale, incentives, limitations, and reliability. Author audits are optional. `reportctl.py` validates shape and consistency but does not score sources. Sources you retrieve but do not cite need a `disposition` and `disposition_note`.
 
@@ -98,7 +100,7 @@ python3 tools/reportctl.py add-evidence "$REPORT" 1 --snapshot latest \
 
 The command refuses text absent from the snapshot, records the quotation in the ledger bound to the snapshot hash, and appends the claim-facing `evidence` record. The claim must already list the source in its `source_ids`. `--from-file` accepts an arbitrary text file instead, but such quotations are unbound and fail `validate --strict`. For non-text evidence (a figure, a table cell, a commit), write the entry by hand with `"kind": "artifact"` and a precise `location`.
 
-Run at least one `--purpose counter` search for each load-bearing inference, forecast and hypothesis, and link it through `counter_search_ids`. Record contradicting sources you find even when you weigh them less.
+Run at least one `--purpose counter` search for each load-bearing inference, forecast and hypothesis, record how many results you inspected with `--considered`, and link it through `counter_search_ids`. Record contradicting sources you find even when you weigh them less.
 
 ## 5. Draft and render citations
 

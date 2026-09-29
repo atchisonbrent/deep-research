@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from html.parser import HTMLParser
@@ -123,6 +124,8 @@ def stores(root: Path, report: Path) -> list[Path]:
 
 
 def find_snapshot(root: Path, report: Path, digest: str) -> Path | None:
+    if not valid_digest(digest):
+        return None
     for store in stores(root, report):
         candidate = store / f"{digest}.txt"
         if candidate.is_file():
@@ -150,6 +153,30 @@ def _write_atomic(path: Path, data: bytes) -> None:
         except FileNotFoundError:
             pass
         raise
+
+
+def ensure_private(store: Path) -> None:
+    """Refuse a private store that Git would commit.
+
+    A store inside a Git work tree must be ignored there; otherwise a routine
+    ``git add -A`` would publish full source text. Stores outside any work
+    tree, or where Git is unavailable, are accepted.
+    """
+    git = shutil.which("git")
+    if not git:
+        return
+    probe = store if store.exists() else store.parent
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    inside = subprocess.run([git, "-C", str(probe), "rev-parse", "--is-inside-work-tree"], capture_output=True, text=True)
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        return
+    ignored = subprocess.run([git, "-C", str(probe), "check-ignore", "-q", "--no-index", str(store / "probe.txt")], capture_output=True)
+    if ignored.returncode != 0:
+        raise ValueError(
+            f"the private snapshot store {store} is inside a Git work tree and is not ignored; "
+            "add `.snapshots/` to that repository's .gitignore or set DEEP_RESEARCH_SNAPSHOTS to a location outside it"
+        )
 
 
 def store_snapshot(store: Path, text: str, metadata: dict[str, Any], raw: bytes | None = None) -> str:
@@ -182,17 +209,34 @@ def _pdf_to_text(raw: bytes) -> str:
     return result.stdout.decode("utf-8", "replace")
 
 
+class _HttpOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Follow redirects only to http(s); urllib would otherwise follow ftp:// too."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        scheme = urllib.parse.urlparse(newurl).scheme.lower()
+        if scheme not in {"http", "https"}:
+            raise ValueError(f"refusing redirect to non-http(s) URL: {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OPENER = urllib.request.build_opener(_HttpOnlyRedirects)
+
+
 def fetch(url: str) -> tuple[str, dict[str, Any], bytes]:
     """Retrieve ``url`` and return ``(text, metadata, raw_bytes)``.
 
     Raises ``ValueError`` for non-success responses, oversize bodies, and
     content that cannot be converted to text.
     """
+    if urllib.parse.urlparse(url).scheme.lower() not in {"http", "https"}:
+        raise ValueError("source URL must be http(s)")
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml,application/pdf,text/plain,application/json;q=0.9,*/*;q=0.5"})
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+        with _OPENER.open(request, timeout=TIMEOUT_SECONDS) as response:
             status = getattr(response, "status", 200)
             final_url = response.geturl()
+            if urllib.parse.urlparse(final_url).scheme.lower() not in {"http", "https"}:
+                raise ValueError(f"retrieval ended at a non-http(s) URL: {final_url}")
             content_type = response.headers.get("Content-Type", "")
             charset = response.headers.get_content_charset() or "utf-8"
             raw = response.read(MAX_BYTES + 1)

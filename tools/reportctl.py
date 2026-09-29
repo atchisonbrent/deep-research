@@ -869,7 +869,8 @@ def validate_report(directory: Path, warnings: list[str] | None = None, *, verif
         if source_id in ledger_by_id:
             require(errors, url == ledger_by_id[source_id]["url"], f"Sources block URL for [{source_id}] differs from ledger")
     anchored_body = body
-    body = strip_anchors(body)
+    anchor_targets = set(claim_by_id) | {h.get("id") for h in hypotheses if isinstance(h, dict) and isinstance(h.get("id"), str)}
+    body = strip_anchors(body, anchor_targets)
     sentences = prose_sentences(body)
     units = prose_units(body)
     covered = [unit for unit in units if citation_scope_valid(unit)]
@@ -912,13 +913,54 @@ def validate_report(directory: Path, warnings: list[str] | None = None, *, verif
     return errors
 
 
-def strip_anchors(value: str) -> str:
-    """Remove claim anchors so reader-facing text and citation checks see plain prose."""
-    return re.sub(r"[ \t]*" + ANCHOR_RE.pattern, "", value)
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 
 
-def anchor_ids(unit: str) -> list[str]:
-    return [part.strip() for match in ANCHOR_RE.finditer(unit) for part in match.group(1).split(",")]
+def _anchor_matches(line: str, known: set[str] | None) -> list[tuple[re.Match[str], list[str]]]:
+    """Return brace groups in ``line`` that are claim anchors.
+
+    A brace group is an anchor when it directly follows a citation group or
+    another anchor (``…[3]{C4}``), or when every ID in it names a known claim or
+    hypothesis. Other brace-wrapped uppercase text, such as ``{JSON}`` in older
+    prose, is ordinary text. Inline code spans are never anchors.
+    """
+    code = [(m.start(), m.end()) for m in INLINE_CODE_RE.finditer(line)]
+    found = []
+    for match in ANCHOR_RE.finditer(line):
+        if any(start <= match.start() < end for start, end in code):
+            continue
+        ids = [part.strip() for part in match.group(1).split(",")]
+        adjacent = match.start() > 0 and line[match.start() - 1] in "]}"
+        if adjacent or (known is not None and all(value in known for value in ids)):
+            found.append((match, ids))
+    return found
+
+
+def strip_anchors(value: str, known: set[str] | None = None) -> str:
+    """Remove claim anchors so reader-facing text and citation checks see plain prose.
+
+    Fenced code blocks and inline code are left untouched.
+    """
+    lines = value.split("\n")
+    in_fence = False
+    for index, line in enumerate(lines):
+        if line.strip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        matches = _anchor_matches(line, known)
+        for match, _ids in reversed(matches):
+            start = match.start()
+            while start > 0 and line[start - 1] in " \t":
+                start -= 1
+            line = line[:start] + line[match.end():]
+        lines[index] = line
+    return "\n".join(lines)
+
+
+def anchor_ids(unit: str, known: set[str] | None = None) -> list[str]:
+    return [value for _match, ids in _anchor_matches(unit, known) for value in ids]
 
 
 def shorten(value: str, limit: int = 90) -> str:
@@ -1025,13 +1067,14 @@ def check_anchors(ctx: ReportContext, errors: list[str], warnings: list[str]) ->
     conclusion is made.
     """
     anchored: set[str] = set()
+    known = set(ctx.claim_by_id) | set(ctx.hypothesis_by_id)
     for unit in prose_units(ctx.body):
-        ids = anchor_ids(unit)
+        ids = anchor_ids(unit, known)
         if not ids:
             continue
         unknown = [value for value in ids if value not in ctx.claim_by_id and value not in ctx.hypothesis_by_id]
         if unknown:
-            errors.append(f"[A1] anchor {{{','.join(unknown)}}} names no claim or hypothesis: {shorten(strip_anchors(unit))}")
+            errors.append(f"[A1] anchor {{{','.join(unknown)}}} names no claim or hypothesis: {shorten(strip_anchors(unit, known))}")
             continue
         anchored.update(ids)
         allowed: set[int] = set()
@@ -1045,12 +1088,12 @@ def check_anchors(ctx: ReportContext, errors: list[str], warnings: list[str]) ->
         cited_here = {int(value) for value in CITE_RE.findall(unit)}
         extra = sorted(cited_here - allowed)
         if extra:
-            errors.append(f"[A2] passage anchored to {','.join(ids)} cites {extra}, which no anchored claim lists as support or contradiction: {shorten(strip_anchors(unit))}")
+            errors.append(f"[A2] passage anchored to {','.join(ids)} cites {extra}, which no anchored claim lists as support or contradiction: {shorten(strip_anchors(unit, known))}")
         for value in ids:
             claim = ctx.claim_by_id.get(value)
             if claim and claim.get("kind") in {"fact", "attributed"} and claim.get("source_ids"):
                 if not cited_here & ctx.claim_sources(value, contradicting=False):
-                    errors.append(f"[A2] passage anchored to {value} cites none of that claim's supporting sources: {shorten(strip_anchors(unit))}")
+                    errors.append(f"[A2] passage anchored to {value} cites none of that claim's supporting sources: {shorten(strip_anchors(unit, known))}")
     missing = [claim_id for claim_id, claim in ctx.claim_by_id.items() if claim.get("importance") == "load-bearing" and claim_id not in anchored]
     if missing:
         warnings.append(f"[A3] {len(missing)} load-bearing claim(s) are not anchored in report.md ({summarize_ids(missing)}); mark where each is asserted with {{CLAIM-ID}} after its citation")
@@ -1085,7 +1128,7 @@ def check_depth(ctx: ReportContext, errors: list[str], warnings: list[str]) -> N
         considered = search.get("results_considered")
         require(errors, considered is None or (isinstance(considered, int) and not isinstance(considered, bool) and considered >= 0), f"{where}.results_considered must be null or a non-negative integer")
         found = search.get("source_ids", [])
-        require(errors, isinstance(found, list) and all(value in ctx.source_by_id for value in found), f"{where}.source_ids must reference assessment sources")
+        require(errors, isinstance(found, list) and all(isinstance(value, int) and not isinstance(value, bool) and value in ctx.source_by_id for value in found), f"{where}.source_ids must reference assessment sources")
 
     if not search_by_id:
         warnings.append("[D1] no search log; record discovery, primary-record and counter-evidence searches with `log-search` so coverage and selection can be audited")
@@ -1102,7 +1145,15 @@ def check_depth(ctx: ReportContext, errors: list[str], warnings: list[str]) -> N
         unknown = [ref for ref in refs if ref not in search_by_id]
         if unknown:
             errors.append(f"[D2] {where}.counter_search_ids reference unknown searches {unknown}")
-        return any(search_by_id.get(ref, {}).get("purpose") == "counter" for ref in refs)
+        # A counter-search counts only when results were actually inspected;
+        # logging a query that nobody read is not seeking disconfirmation.
+        return any(
+            search_by_id.get(ref, {}).get("purpose") == "counter"
+            and isinstance(search_by_id[ref].get("results_considered"), int)
+            and search_by_id[ref]["results_considered"] >= 1
+            for ref in refs
+            if ref in search_by_id
+        )
 
     unchallenged: list[str] = []
     for claim_id, claim in ctx.claim_by_id.items():
@@ -1505,24 +1556,32 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def record_snapshot(directory: Path, url: str, title: str | None, text_value: str, metadata: dict[str, Any], raw: bytes | None, store: str) -> tuple[int, str]:
-    """Store a snapshot, register or update its ledger source, and attach the snapshot record."""
+def snapshot_preflight(directory: Path, url: str, title: str | None, store: str, retrieved_at: str) -> tuple[dict[str, Any] | None, Path]:
+    """Check everything that can fail before any network or file work; return the existing ledger entry and target store."""
     if store not in {"vault", "report"}:
         raise ValueError("--store must be vault or report")
-    ledger_path = directory / "sources-ledger.json"
-    ledger = load_json(ledger_path)
+    ledger = load_json(directory / "sources-ledger.json")
     sources = ledger.get("sources") if isinstance(ledger, dict) else None
     if not isinstance(sources, list):
         raise ValueError("sources-ledger.json sources must be a list")
     existing = next((item for item in sources if isinstance(item, dict) and item.get("url") == url), None)
     if existing is None and not text(title):
         raise ValueError("--title is required when the URL is not yet in the ledger")
-    retrieved_at = str(metadata.get("retrieved_at") or utc_now())
     assessment = load_json(directory / "assessment.json")
     cutoff = (assessment.get("report") or {}).get("cutoff") if isinstance(assessment, dict) else None
     if cutoff and not not_after(retrieved_at, cutoff):
         raise ValueError(f"retrieval time {retrieved_at} is after the report cutoff {cutoff}; a later retrieval belongs in a dated successor")
     target = snapshots.report_store(directory) if store == "report" else snapshots.vault_store(ROOT)
+    if store == "vault":
+        snapshots.ensure_private(target)
+    return existing, target
+
+
+def record_snapshot(directory: Path, url: str, title: str | None, text_value: str, metadata: dict[str, Any], raw: bytes | None, store: str) -> tuple[int, str]:
+    """Store a snapshot, register or update its ledger source, and attach the snapshot record."""
+    retrieved_at = str(metadata.get("retrieved_at") or utc_now())
+    existing, target = snapshot_preflight(directory, url, title, store, retrieved_at)
+    ledger_path = directory / "sources-ledger.json"
     digest = snapshots.store_snapshot(target, text_value, {**metadata, "retrieved_at": retrieved_at}, raw)
     source_id = add_source(directory, url, title or str(existing.get("title")), retrieved_at[:10])
     ledger = load_json(ledger_path)
@@ -1543,6 +1602,7 @@ def record_snapshot(directory: Path, url: str, title: str | None, text_value: st
 def fetch_source(directory: Path, url: str, title: str | None, store: str) -> tuple[int, str]:
     if not valid_url(url):
         raise ValueError("source URL must be http(s)")
+    snapshot_preflight(directory, url, title, store, utc_now())
     text_value, metadata, raw = snapshots.fetch(url)
     return record_snapshot(directory, url, title, text_value, metadata, raw if store == "vault" else None, store)
 
@@ -1612,9 +1672,10 @@ def audit_sample(directory: Path, size: int, seed: int | None) -> dict[str, Any]
     claims = {c["id"]: c for c in assessment.get("claims", []) if isinstance(c, dict) and isinstance(c.get("id"), str)}
     evidence = [e for e in assessment.get("evidence", []) if isinstance(e, dict)]
     passages: dict[str, list[str]] = {}
+    known = set(claims) | {h.get("id") for h in assessment.get("hypotheses", []) if isinstance(h, dict) and isinstance(h.get("id"), str)}
     for unit in prose_units(body):
-        for claim_id in anchor_ids(unit):
-            passages.setdefault(claim_id, []).append(strip_anchors(unit))
+        for claim_id in anchor_ids(unit, known):
+            passages.setdefault(claim_id, []).append(strip_anchors(unit, known))
     pairs: list[tuple[str, dict[str, Any] | None]] = []
     for claim_id, claim in claims.items():
         items = [e for e in evidence if claim_id in (e.get("supports_claim_ids") or [])]
@@ -1675,7 +1736,9 @@ def record_audit(directory: Path, verdict_file: Path, route: str) -> dict[str, A
     if not isinstance(items, list) or not items:
         raise ValueError("verdict file must contain a non-empty items list")
     kept_keys = ("claim_id", "evidence_id", "excerpt_verdict", "prose_verdict", "note", "disposition")
-    recorded = [{key: item.get(key) for key in kept_keys} for item in items if isinstance(item, dict)]
+    if not all(isinstance(item, dict) and item.get("claim_id") for item in items):
+        raise ValueError("every verdict item must be an object naming its claim_id")
+    recorded = [{key: item.get(key) for key in kept_keys} for item in items]
     for item in recorded:
         if item["excerpt_verdict"] is None and item["prose_verdict"] is None:
             raise ValueError(f"item for claim {item['claim_id']} has no verdict; every sampled item must be judged")
@@ -1719,7 +1782,9 @@ def due_rows(as_of: str) -> list[dict[str, Any]]:
 
 def reader_text(directory: Path) -> str:
     """Report Markdown with claim anchors removed, for presentation builds."""
-    return strip_anchors((directory / "report.md").read_text(encoding="utf-8"))
+    assessment = load_json(directory / "assessment.json")
+    known = {item.get("id") for key in ("claims", "hypotheses") for item in (assessment.get(key) or []) if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    return strip_anchors((directory / "report.md").read_text(encoding="utf-8"), known)
 
 
 def init_report(args: argparse.Namespace) -> Path:
@@ -2052,8 +2117,12 @@ def sensitive_content_errors() -> list[str]:
         "JWT": re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
         "Stripe key": re.compile(r"\b[sr]k_live_[A-Za-z0-9]{20,}\b"),
     }
+    private_store = snapshots.vault_store(ROOT).resolve()
     for path in ROOT.rglob("*"):
         if not path.is_file() or ".git" in path.parts:
+            continue
+        if path.resolve().is_relative_to(private_store):
+            # The private store is Git-ignored third-party text, not repository content.
             continue
         if path.name in forbidden_names or path.name.startswith(".env."):
             errors.append(f"forbidden sensitive filename: {path.relative_to(ROOT)}")

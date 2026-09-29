@@ -79,7 +79,7 @@ $R due                                                  # hypotheses ready to sc
 
 Use the agent's web search for discovery and `fetch` for evidence. When `fetch` is blocked (403, consent wall, script-rendered page) or the source is a PDF without `pdftotext`, read it with a browser or extractor, save the text, and `capture` it with a note saying how. Try an archive snapshot when a page is gone and record the archive URL. If the agent has no web retrieval, stop with an explicit coverage gap rather than inventing current evidence.
 
-`fetch` stores text in the private, Git-ignored vault store (`<vault>/.snapshots/` or `$DEEP_RESEARCH_SNAPSHOTS`) by default. Use `--store report` only for text that may be redistributed—US federal government works, openly licensed papers, your own measurements—so it is committed beside the report.
+`fetch` stores text in the private vault store (`<vault>/.snapshots/` or `$DEEP_RESEARCH_SNAPSHOTS`) by default; the vault must Git-ignore it, and `fetch` refuses otherwise. Use `--store report` only for text that may be redistributed—US federal government works, openly licensed papers, your own measurements—so it is committed beside the report.
 
 ## Procedure
 
@@ -128,7 +128,7 @@ Completion: every read source has a snapshot or a recorded reason it could not b
 
 ### 5. Seek disconfirmation deliberately
 
-For every load-bearing inference, forecast, and hypothesis, run at least one search designed to prove it wrong—log it with `--purpose counter` and link it through `counter_search_ids`. Look for the strongest opposing case as its best-informed proponents make it, later corrections, replications and failed replications, and evidence that would make the preferred story fail. Record what you find in `contradicting_source_ids`, even when you ultimately weigh it less.
+For every load-bearing inference, forecast, and hypothesis, run at least one search designed to prove it wrong—log it with `--purpose counter`, record how many results you actually inspected, and link it through `counter_search_ids`. Look for the strongest opposing case as its best-informed proponents make it, later corrections, replications and failed replications, and evidence that would make the preferred story fail. Record what you find in `contradicting_source_ids`, even when you ultimately weigh it less.
 
 Balance means symmetric search effort, not symmetric conclusions. If favorable and unfavorable evidence for a position were sought with different intensity, the report is biased regardless of its tone.
 
