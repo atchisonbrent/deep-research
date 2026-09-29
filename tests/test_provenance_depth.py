@@ -558,6 +558,72 @@ class ReviewFindingRegressionTests(Base):
         self.assertEqual(["H1"], [row["hypothesis"] for row in json.loads(due.stdout)["hypotheses"]])
 
 
+class ReReviewRegressionTests(Base):
+    """Regressions for the independent re-review of a184d88."""
+
+    TOKEN = "ghp_" + "A1b2" * 9
+    legacy = ReviewFindingRegressionTests.legacy
+
+    def test_scan_sensitive_scans_a_store_set_to_the_repository_itself(self) -> None:
+        (self.root / "leak.txt").write_text(f"token {self.TOKEN}\n")
+        for store in (self.root, self.root.parent):
+            with mock.patch.dict("os.environ", {"DEEP_RESEARCH_SNAPSHOTS": str(store)}):
+                errors = reportctl.sensitive_content_errors()
+            self.assertTrue(any("leak.txt" in e for e in errors), (store, errors))
+
+    def test_scan_sensitive_skips_only_an_ignored_store(self) -> None:
+        if not shutil.which("git"):
+            self.skipTest("git unavailable")
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        store = self.root / ".snapshots"
+        store.mkdir()
+        (store / "page.txt").write_text(f"quoted page {self.TOKEN}\n")
+        self.assertTrue(any("page.txt" in e for e in reportctl.sensitive_content_errors()))
+        (self.root / ".gitignore").write_text(".snapshots/\n")
+        self.assertFalse(any("page.txt" in e for e in reportctl.sensitive_content_errors()))
+
+    def test_record_audit_refuses_non_string_ids(self) -> None:
+        verdicts = self.root / "verdicts.json"
+        for item in ({"claim_id": ["C1"], "excerpt_verdict": "supports"}, {"claim_id": "C1", "evidence_id": {"x": 1}, "excerpt_verdict": "supports"}):
+            verdicts.write_text(json.dumps({"items": [item]}))
+            with self.assertRaises(ValueError):
+                reportctl.record_audit(self.report, verdicts, "reviewer")
+
+    def test_hand_edited_non_string_ids_are_errors_not_exceptions(self) -> None:
+        assessment = self.assessment()
+        assessment.setdefault("review", {})["entailment_audit"] = {
+            "route": "reviewer",
+            "audited_at": "2026-08-31T12:00:00Z",
+            "items": [{"claim_id": ["C1"], "evidence_id": {"x": 1}, "excerpt_verdict": "supports"}],
+        }
+        assessment["evidence"][0]["source_id"] = [1]
+        self.save(assessment)
+        errors, _ = self.validate()
+        self.assertTrue(any("[R1]" in e and "claim_id" in e for e in errors), errors)
+        self.assertTrue(any("[R1]" in e and "evidence_id" in e for e in errors), errors)
+        self.assertTrue(any("source_id is unknown" in e for e in errors), errors)
+
+    def test_tilde_and_longer_backtick_fences_keep_anchor_like_text(self) -> None:
+        blocks = "~~~\ntilde.[1]{C1}\n~~~\n\n````md\n```\nnested.[1]{C1}\n```\n````\n\n"
+        self.markdown("## Uncertainty", blocks + "## Uncertainty")
+        reader = reportctl.reader_text(self.report)
+        self.assertIn("tilde.[1]{C1}", reader)
+        self.assertIn("nested.[1]{C1}", reader)
+        errors, _ = self.validate()
+        self.assertEqual([], errors)
+
+    def test_only_citation_groups_and_anchors_make_braces_adjacent(self) -> None:
+        target = self.legacy()
+        path = target / "report.md"
+        path.write_text(path.read_text().replace(
+            "Independent corroboration has not yet been located.[1]",
+            "Independent corroboration of the [alliance]{NATO} and {JSON}{FOO} records has not yet been located.[1]",
+        ))
+        warnings: list[str] = []
+        self.assertEqual([], reportctl.validate_report(target, warnings))
+        self.assertIn("[alliance]{NATO}", reportctl.reader_text(target))
+
+
 class JsonSchemaSyncTests(unittest.TestCase):
     def test_published_schemas_match_validator_vocabularies(self) -> None:
         assessment = json.loads((ROOT / "schema" / "assessment.schema.json").read_text())

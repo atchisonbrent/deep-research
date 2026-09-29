@@ -155,27 +155,35 @@ def _write_atomic(path: Path, data: bytes) -> None:
         raise
 
 
-def ensure_private(store: Path) -> None:
-    """Refuse a private store that Git would commit.
+def committable(store: Path) -> bool:
+    """Return whether Git would commit files written to ``store``.
 
-    A store inside a Git work tree must be ignored there; otherwise a routine
-    ``git add -A`` would publish full source text. Stores outside any work
-    tree, or where Git is unavailable, are accepted.
+    True when the store lies inside a Git work tree that does not ignore it.
+    Stores outside any work tree, or where Git is unavailable, are not
+    committable.
     """
     git = shutil.which("git")
     if not git:
-        return
+        return False
     probe = store if store.exists() else store.parent
     while not probe.exists() and probe != probe.parent:
         probe = probe.parent
     inside = subprocess.run([git, "-C", str(probe), "rev-parse", "--is-inside-work-tree"], capture_output=True, text=True)
     if inside.returncode != 0 or inside.stdout.strip() != "true":
-        return
+        return False
     ignored = subprocess.run([git, "-C", str(probe), "check-ignore", "-q", "--no-index", str(store / "probe.txt")], capture_output=True)
-    if ignored.returncode != 0:
+    return ignored.returncode != 0
+
+
+def ensure_private(store: Path) -> None:
+    """Refuse a private store that Git would commit.
+
+    Otherwise a routine ``git add -A`` would publish full source text.
+    """
+    if committable(store):
         raise ValueError(
             f"the private snapshot store {store} is inside a Git work tree and is not ignored; "
-            "add `.snapshots/` to that repository's .gitignore or set DEEP_RESEARCH_SNAPSHOTS to a location outside it"
+            f"add `{store.name}/` to that repository's .gitignore or set DEEP_RESEARCH_SNAPSHOTS to a location outside it"
         )
 
 

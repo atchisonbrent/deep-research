@@ -85,7 +85,7 @@ python3 tools/reportctl.py scan-sensitive
 python3 -m unittest discover -s tests -v
 ```
 
-Snapshots live in the `.snapshots/` store (or `$DEEP_RESEARCH_SNAPSHOTS`), which must be Git-ignored—`fetch` refuses to write it otherwise—unless `--store report` commits redistributable text beside the report. PDF retrieval uses `pdftotext` (poppler) when installed; otherwise extract the text another way and `capture` it.
+Snapshots live in the `.snapshots/` store (or `$DEEP_RESEARCH_SNAPSHOTS`), which must be Git-ignored—`fetch` and `capture` refuse to write it otherwise—unless `--store report` commits redistributable text beside the report. PDF retrieval uses `pdftotext` (poppler) when installed; otherwise extract the text another way and `capture` it.
 
 ## AI-agent integration
 

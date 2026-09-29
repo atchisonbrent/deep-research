@@ -342,19 +342,41 @@ def table_header_indexes(lines: list[str]) -> set[int]:
     return {index for index in rows if index + 1 in rows and is_table_separator(lines[index + 1].strip()) and not is_table_separator(lines[index].strip())}
 
 
+FENCE_RE = re.compile(r"^(`{3,}|~{3,})")
+
+
+def fence_step(stripped: str, fence: str | None) -> tuple[bool, str | None]:
+    """Track fenced code blocks line by line.
+
+    ``fence`` is the open fence's marker, or None outside a fence. Returns
+    whether ``stripped`` is itself a fence line and the marker after it. As in
+    CommonMark, backtick and tilde fences both count, and a fence closes only on
+    a bare marker of the same character at least as long as the opener.
+    """
+    match = FENCE_RE.match(stripped)
+    if not match:
+        return False, fence
+    marker = match.group(1)
+    if fence is None:
+        return True, marker
+    if marker[0] == fence[0] and len(marker) >= len(fence) and not stripped[len(marker):].strip():
+        return True, None
+    return False, fence
+
+
 def prose_sentences(markdown: str) -> list[str]:
     sentences: list[str] = []
-    in_fence = False
+    fence: str | None = None
     lines = markdown.splitlines()
     rows = table_rows(lines)
     headers = table_header_indexes(lines)
     for index, line in enumerate(lines):
         stripped = line.strip()
-        if stripped.startswith("```"):
-            in_fence = not in_fence
+        fence_line, fence = fence_step(stripped, fence)
+        if fence_line:
             continue
         if (
-            in_fence
+            fence
             or not stripped
             or stripped.startswith("#")
             or stripped == "---"
@@ -385,7 +407,7 @@ def prose_units(markdown: str) -> list[str]:
     units: list[str] = []
     paragraph: list[str] = []
     list_item: list[str] = []
-    in_fence = False
+    fence: str | None = None
     in_frontmatter = False
     lines = markdown.splitlines()
     rows = table_rows(lines)
@@ -408,11 +430,11 @@ def prose_units(markdown: str) -> list[str]:
             if stripped == "---":
                 in_frontmatter = False
             continue
-        if stripped.startswith("```"):
+        fence_line, fence = fence_step(stripped, fence)
+        if fence_line:
             flush()
-            in_fence = not in_fence
             continue
-        if in_fence:
+        if fence:
             continue
         if not stripped:
             flush()
@@ -745,7 +767,7 @@ def validate_report(directory: Path, warnings: list[str] | None = None, *, verif
             require(errors, not_after(item.get("captured_at"), report.get("cutoff")), f"{where}.captured_at is after the report cutoff")
         kind = item.get("kind", "excerpt")
         require(errors, kind in EVIDENCE_KINDS, f"{where}.kind must be one of {sorted(EVIDENCE_KINDS)}")
-        if kind == "excerpt" and item.get("source_id") in ledger_by_id and text(item.get("excerpt")):
+        if kind == "excerpt" and isinstance(item.get("source_id"), int) and item["source_id"] in ledger_by_id and text(item.get("excerpt")):
             ledger_quotes = {normalize_whitespace(str(q.get("text", ""))) for q in ledger_by_id[item["source_id"]].get("quotes", []) if isinstance(q, dict)}
             verified = normalize_whitespace(str(item["excerpt"])) in ledger_quotes
             if not verified:
@@ -925,14 +947,17 @@ def _anchor_matches(line: str, known: set[str] | None) -> list[tuple[re.Match[st
     prose, is ordinary text. Inline code spans are never anchors.
     """
     code = [(m.start(), m.end()) for m in INLINE_CODE_RE.finditer(line)]
+    citation_ends = {m.end() for m in CITE_GROUP_RE.finditer(line)}
     found = []
+    anchor_ends: set[int] = set()
     for match in ANCHOR_RE.finditer(line):
         if any(start <= match.start() < end for start, end in code):
             continue
         ids = [part.strip() for part in match.group(1).split(",")]
-        adjacent = match.start() > 0 and line[match.start() - 1] in "]}"
+        adjacent = match.start() in citation_ends or match.start() in anchor_ends
         if adjacent or (known is not None and all(value in known for value in ids)):
             found.append((match, ids))
+            anchor_ends.add(match.end())
     return found
 
 
@@ -942,12 +967,10 @@ def strip_anchors(value: str, known: set[str] | None = None) -> str:
     Fenced code blocks and inline code are left untouched.
     """
     lines = value.split("\n")
-    in_fence = False
+    fence: str | None = None
     for index, line in enumerate(lines):
-        if line.strip().startswith("```"):
-            in_fence = not in_fence
-            continue
-        if in_fence:
+        fence_line, fence = fence_step(line.strip(), fence)
+        if fence_line or fence:
             continue
         matches = _anchor_matches(line, known)
         for match, _ids in reversed(matches):
@@ -1263,8 +1286,9 @@ def check_review_evidence(ctx: ReportContext, errors: list[str], warnings: list[
                 if not isinstance(item, dict):
                     errors.append(f"{where} must be an object")
                     continue
-                require(errors, item.get("claim_id") in ctx.claim_by_id, f"{where}.claim_id must name a claim")
-                require(errors, item.get("evidence_id") is None or item.get("evidence_id") in evidence_ids, f"{where}.evidence_id must be null or name an evidence record")
+                claim_id, evidence_id = item.get("claim_id"), item.get("evidence_id")
+                require(errors, isinstance(claim_id, str) and claim_id in ctx.claim_by_id, f"{where}.claim_id must name a claim")
+                require(errors, evidence_id is None or (isinstance(evidence_id, str) and evidence_id in evidence_ids), f"{where}.evidence_id must be null or name an evidence record")
                 excerpt_verdict = item.get("excerpt_verdict")
                 prose_verdict = item.get("prose_verdict")
                 require(errors, excerpt_verdict is None or excerpt_verdict in EXCERPT_VERDICTS, f"{where}.excerpt_verdict must be null or one of {sorted(EXCERPT_VERDICTS)}")
@@ -1736,8 +1760,11 @@ def record_audit(directory: Path, verdict_file: Path, route: str) -> dict[str, A
     if not isinstance(items, list) or not items:
         raise ValueError("verdict file must contain a non-empty items list")
     kept_keys = ("claim_id", "evidence_id", "excerpt_verdict", "prose_verdict", "note", "disposition")
-    if not all(isinstance(item, dict) and item.get("claim_id") for item in items):
-        raise ValueError("every verdict item must be an object naming its claim_id")
+    for item in items:
+        if not isinstance(item, dict) or not text(item.get("claim_id")):
+            raise ValueError("every verdict item must be an object naming its claim_id as a string")
+        if item.get("evidence_id") is not None and not text(item.get("evidence_id")):
+            raise ValueError(f"item for claim {item['claim_id']} has an evidence_id that is not a string")
     recorded = [{key: item.get(key) for key in kept_keys} for item in items]
     for item in recorded:
         if item["excerpt_verdict"] is None and item["prose_verdict"] is None:
@@ -2117,12 +2144,17 @@ def sensitive_content_errors() -> list[str]:
         "JWT": re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
         "Stripe key": re.compile(r"\b[sr]k_live_[A-Za-z0-9]{20,}\b"),
     }
+    # A Git-ignored private store holds third-party text, not repository
+    # content. Skip it only when it sits strictly inside the repository and is
+    # ignored: a store misconfigured as the repository or an ancestor, or one
+    # Git would commit, is scanned like everything else.
+    root = ROOT.resolve()
     private_store = snapshots.vault_store(ROOT).resolve()
+    skip_store = private_store != root and private_store.is_relative_to(root) and not snapshots.committable(private_store)
     for path in ROOT.rglob("*"):
         if not path.is_file() or ".git" in path.parts:
             continue
-        if path.resolve().is_relative_to(private_store):
-            # The private store is Git-ignored third-party text, not repository content.
+        if skip_store and path.resolve().is_relative_to(private_store):
             continue
         if path.name in forbidden_names or path.name.startswith(".env."):
             errors.append(f"forbidden sensitive filename: {path.relative_to(ROOT)}")
