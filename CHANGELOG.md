@@ -11,6 +11,18 @@ All notable changes to this project are documented here. This project follows [S
 
 
 
+
+## [0.3.0] - 2026-09-29
+
+### Breaking Changes
+
+- bind evidence to captured source text and enforce research depth
+
+### Bug Fixes
+
+- close independent-review findings before the 0.3.0 release
+- close re-review findings in secret scan, audit IDs and anchor grammar
+- harden validator ID handling and scan-sensitive without Git
 ## [0.2.1] - 2026-09-21
 
 ### Features
@@ -88,3 +100,4 @@ All notable changes to this project are documented here. This project follows [S
 [0.1.7]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.1.7
 [0.2.0]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.2.0
 [0.2.1]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.2.1
+[0.3.0]: https://github.com/atchisonbrent/deep-research/releases/tag/v0.3.0
