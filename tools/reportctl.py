@@ -1898,8 +1898,6 @@ def supersede_report(predecessor: Path, slug: str, title: str, cutoff: str, mode
     the predecessor's two files are restored byte-for-byte and the partially
     created successor directory is removed.
     """
-    import shutil
-
     predecessor = predecessor.resolve()
     try:
         pred_rel = predecessor.relative_to(REPORTS.resolve())
