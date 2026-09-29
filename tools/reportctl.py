@@ -8,6 +8,7 @@ import hashlib
 import json
 import random
 import re
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -758,7 +759,9 @@ def validate_report(directory: Path, warnings: list[str] | None = None, *, verif
         require(errors, evidence_id not in evidence_ids, f"duplicate evidence id: {evidence_id}")
         if evidence_id:
             evidence_ids.add(evidence_id)
-        require(errors, isinstance(item.get("source_id"), int) and item.get("source_id") in source_by_id, f"{where}.source_id is unknown")
+        source_id = item.get("source_id")
+        source_id = source_id if isinstance(source_id, int) and not isinstance(source_id, bool) else None
+        require(errors, source_id in source_by_id, f"{where}.source_id is unknown")
         require(errors, text(item.get("excerpt")), f"{where}.excerpt must be non-empty")
         require(errors, len(str(item.get("excerpt", ""))) <= 1000, f"{where}.excerpt exceeds 1000 characters")
         require(errors, text(item.get("location")), f"{where}.location must be non-empty")
@@ -767,23 +770,23 @@ def validate_report(directory: Path, warnings: list[str] | None = None, *, verif
             require(errors, not_after(item.get("captured_at"), report.get("cutoff")), f"{where}.captured_at is after the report cutoff")
         kind = item.get("kind", "excerpt")
         require(errors, kind in EVIDENCE_KINDS, f"{where}.kind must be one of {sorted(EVIDENCE_KINDS)}")
-        if kind == "excerpt" and isinstance(item.get("source_id"), int) and item["source_id"] in ledger_by_id and text(item.get("excerpt")):
-            ledger_quotes = {normalize_whitespace(str(q.get("text", ""))) for q in ledger_by_id[item["source_id"]].get("quotes", []) if isinstance(q, dict)}
+        if kind == "excerpt" and source_id in ledger_by_id and text(item.get("excerpt")):
+            ledger_quotes = {normalize_whitespace(str(q.get("text", ""))) for q in ledger_by_id[source_id].get("quotes", []) if isinstance(q, dict)}
             verified = normalize_whitespace(str(item["excerpt"])) in ledger_quotes
             if not verified:
-                warnings.append(f"{where}.excerpt has no matching ledger quote for source {item['source_id']}; record it with `add-evidence` or `add-quote --from-file`, or set kind to 'artifact' for non-text evidence")
+                warnings.append(f"{where}.excerpt has no matching ledger quote for source {source_id}; record it with `add-evidence` or `add-quote --from-file`, or set kind to 'artifact' for non-text evidence")
         supports = item.get("supports_claim_ids")
         require(errors, isinstance(supports, list) and bool(supports), f"{where}.supports_claim_ids must be non-empty")
         if isinstance(supports, list):
             require(errors, all(isinstance(c, str) for c in supports), f"{where}.supports_claim_ids entries must be claim id strings")
             supports = [c for c in supports if isinstance(c, str)]
-            evidence_source = source_by_id.get(item.get("source_id")) if isinstance(item.get("source_id"), int) else None
+            evidence_source = source_by_id.get(source_id)
             for claim_id in supports:
                 require(errors, claim_id in claim_by_id, f"{where} references unknown claim {claim_id}")
                 evidence_claims.add(claim_id)
                 if claim_id in claim_by_id:
                     claim_sources = claim_by_id[claim_id].get("source_ids")
-                    require(errors, isinstance(claim_sources, list) and item.get("source_id") in claim_sources, f"{where}.source_id must be listed by supported claim {claim_id}")
+                    require(errors, isinstance(claim_sources, list) and source_id in claim_sources, f"{where}.source_id must be listed by supported claim {claim_id}")
                     if evidence_source is not None:
                         evidence_access_by_claim.setdefault(str(claim_id), set()).add(str(evidence_source.get("access")))
     for claim_id, claim in claim_by_id.items():
@@ -1271,7 +1274,7 @@ def check_calibration(ctx: ReportContext, errors: list[str], warnings: list[str]
 
 def check_review_evidence(ctx: ReportContext, errors: list[str], warnings: list[str]) -> None:
     """[R] Semantic audit and coverage review records."""
-    evidence_ids = {item.get("id") for item in ctx.evidence}
+    evidence_ids = {item["id"] for item in ctx.evidence if isinstance(item.get("id"), str)}
     audit = ctx.review.get("entailment_audit")
     if audit is not None:
         if not isinstance(audit, dict):
@@ -2150,7 +2153,12 @@ def sensitive_content_errors() -> list[str]:
     # Git would commit, is scanned like everything else.
     root = ROOT.resolve()
     private_store = snapshots.vault_store(ROOT).resolve()
-    skip_store = private_store != root and private_store.is_relative_to(root) and not snapshots.committable(private_store)
+    skip_store = (
+        private_store != root
+        and private_store.is_relative_to(root)
+        and shutil.which("git") is not None
+        and not snapshots.committable(private_store)
+    )
     for path in ROOT.rglob("*"):
         if not path.is_file() or ".git" in path.parts:
             continue

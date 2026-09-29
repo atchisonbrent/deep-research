@@ -603,6 +603,26 @@ class ReReviewRegressionTests(Base):
         self.assertTrue(any("[R1]" in e and "evidence_id" in e for e in errors), errors)
         self.assertTrue(any("source_id is unknown" in e for e in errors), errors)
 
+    def test_malformed_evidence_ids_and_bool_sources_are_errors_not_exceptions(self) -> None:
+        assessment = self.assessment()
+        assessment["evidence"][0]["id"] = ["E1"]
+        self.save(assessment)
+        errors, _ = self.validate()
+        self.assertTrue(any(".id invalid" in e for e in errors), errors)
+        assessment["evidence"][0]["id"] = "E1"
+        assessment["evidence"][0]["source_id"] = True
+        self.save(assessment)
+        errors, _ = self.validate()
+        self.assertTrue(any("source_id is unknown" in e for e in errors), errors)
+
+    def test_scan_sensitive_scans_an_in_repository_store_when_git_is_unavailable(self) -> None:
+        store = self.root / ".snapshots"
+        store.mkdir()
+        (store / "page.txt").write_text(f"quoted page {self.TOKEN}\n")
+        (self.root / ".gitignore").write_text(".snapshots/\n")
+        with mock.patch.object(reportctl.shutil, "which", return_value=None):
+            self.assertTrue(any("page.txt" in e for e in reportctl.sensitive_content_errors()))
+
     def test_tilde_and_longer_backtick_fences_keep_anchor_like_text(self) -> None:
         blocks = "~~~\ntilde.[1]{C1}\n~~~\n\n````md\n```\nnested.[1]{C1}\n```\n````\n\n"
         self.markdown("## Uncertainty", blocks + "## Uncertainty")
