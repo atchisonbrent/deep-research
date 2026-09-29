@@ -1,10 +1,12 @@
 # Report Schema
 
-`assessment.json` is the machine-readable audit trail behind `report.md`.
+`assessment.json` is the machine-readable audit trail behind `report.md`. [`schema/assessment.schema.json`](schema/assessment.schema.json) and [`schema/sources-ledger.schema.json`](schema/sources-ledger.schema.json) describe the same shapes as JSON Schema (draft 2020-12) for editors and agents. They are structural only; `reportctl.py validate` also enforces the cross-references, temporal order, coverage, anchor and guardrail rules below.
 
 ## Compatibility
 
 `schema_version` describes the **shape** of `assessment.json`. Validity is decided by the pinned framework release: newer releases add rules (temporal coherence, status/confidence guardrails, snippet limits, placeholder rejection) that older reports may fail. Consumers pin an exact framework tag; a report is "valid" relative to that tag. Rule additions that would fail previously valid reports are released as a **minor** version bump (a breaking change under 0.x semantics) and called out in `CHANGELOG.md`; patch releases never turn a valid report invalid. Where a rule can be phased in, it ships first as a warning and becomes an error at the following minor version, as the unverified-excerpt rule does. The 0.2.0 hardening (temporal coherence, status/confidence guardrails, snippet limits, placeholder rejection, required hypothesis alternatives, frontmatter title check) shipped as immediate errors in that minor release after verifying every existing consumer report against it.
+
+The 0.3.0 rules (snapshot-bound quotations, claim anchors, search log, sought counter-evidence, source dispositions, primary tracing, attribution/truth separation, hypothesis resolution dates, semantic audit and coverage review; see [Rule codes](#rule-codes)) ship as **warnings**, so `validate --strict` fails reports written before them while default `validate` still passes. Their structural errors—a malformed search log, an anchor naming no claim, a quotation bound to an unrecorded or altered snapshot—are immediate errors, because no pre-0.3.0 report contains those fields.
 
 ## Top-level fields
 
@@ -13,7 +15,8 @@
 - `sources`: detailed source and author assessments keyed by numeric citation ID.
 - `claims`: atomic factual, inferential, forecast, or unknown propositions.
 - `evidence`: short excerpts or artifact coordinates tied to claims.
-- `hypotheses`: competing explanations with probability ranges and update triggers.
+- `hypotheses`: competing explanations with probability ranges, update triggers and resolution dates.
+- `searches`: the search log—what was searched, where, why, and what it yielded.
 - `coverage_gaps`: known missing evidence or access limitations, as free text or structured objects (see below).
 - `review`: deterministic and independent review state.
 
@@ -102,7 +105,7 @@ Every group assignment also carries `independence_rationale`. A confirmed load-b
 
 ## Author evidence
 
-Per-author expertise remains `unknown` unless `expertise_evidence` explains the basis. A `high` aggregate author-expertise rating requires at least one public `expertise_url`. An empty author list forces author expertise and track record to `unknown`; publisher prestige cannot silently stand in for a byline audit.
+`authors` is optional; omit it when no byline audit was performed. `reliability.author_expertise` and `author_track_record` default to `unknown` when omitted. When an author is recorded, only `name` is required; `expertise_evidence`, `expertise_url`, `track_record_evidence` and `conflicts` are recorded when researched. A `high` aggregate author-expertise rating requires at least one public `expertise_url`. An empty or omitted author list forces author ratings to `unknown`; publisher prestige cannot silently stand in for a byline audit.
 
 ## Evidence excerpts
 
@@ -110,16 +113,68 @@ Evidence entries contain short public excerpts or artifact coordinates—not ful
 
 Each entry carries a `kind`:
 
-- `excerpt` (default when omitted): verbatim text from the source. The excerpt must match, after whitespace normalization, a `quotes[].text` entry recorded on the same source in `sources-ledger.json`. The intended way to create those quotes is `reportctl.py add-evidence` (or `add-quote --from-file`), which refuses text not found verbatim in a caller-supplied text file. An unmatched excerpt is an advisory **warning** in schema 1 and becomes an error under `validate --strict` and at the next minor framework release.
+- `excerpt` (default when omitted): verbatim text from the source. The excerpt must match, after whitespace normalization, a `quotes[].text` entry recorded on the same source in `sources-ledger.json`. Create those quotes with `reportctl.py add-evidence --snapshot` (see [Snapshots](#snapshots)). An unmatched excerpt is an advisory **warning** and an error under `validate --strict`.
 - `artifact`: a coordinate for non-text evidence—figure, table cell, dataset row, commit hash, timestamp in a recording, or a specification-table value. Artifacts are exempt from the ledger-quote match but must still name a precise `location`.
 
-**What this establishes, honestly.** The validator proves *correspondence*: every excerpt has a ledger quote, and the ledger is the only place `add-evidence` writes. It does not prove that the quote was created by the command rather than by hand, that the supplied text file was fetched from the registered URL, or that an `artifact` label was deserved. Those remain analyst attestations, inspectable through Git history and the `evidence/` directory where fetched text should be kept. The framework makes fabrication *effortful and visible*, not impossible.
+**What this establishes, honestly.** For snapshot-bound quotations with the snapshot present, the validator proves the quotation appears in text whose hash matches the ledger record, and that the text has not been altered since capture. `fetch` records the final URL, HTTP status, content type and raw-response hash, so a retrieval is a tool observation rather than an analyst's claim. It still does not prove that a `capture` file came from the registered URL (its `note` says how it was obtained), that a page served the same text to everyone, that an excerpt *entails* its claim, or that an `artifact` label was deserved. Entailment is what the [entailment audit](#entailment-audit) samples. The framework makes fabrication effortful, visible and, for fetched text, checkable—not impossible.
 
 An evidence source must also appear in every claim it supports. This prevents a quote from one source being attached to a claim whose declared source set says something else.
 
+## Snapshots
+
+A snapshot is the extracted text of a retrieved source, canonicalized (line endings, runs of spaces, blank lines) and stored as `<sha256>.txt` with a `<sha256>.json` metadata file. `reportctl.py fetch <report> <url>` retrieves HTML, plain text, JSON or XML with the standard library and PDFs through `pdftotext` when installed; `capture <report> <url> --from-file <text> --note …` records text obtained any other way. Both register the source when new and append a record to its ledger entry:
+
+```json
+{"id": 4, "url": "…", "title": "…", "accessed": "2026-09-20",
+ "snapshots": [{"sha256": "3f2a…", "method": "fetch", "retrieved_at": "2026-09-20T14:03:11Z", "store": "vault",
+                "final_url": "…", "status": 200, "content_type": "text/html; charset=utf-8", "raw_sha256": "9c1e…"}],
+ "quotes": [{"text": "Fentanyl investigations decreased by 24 percent", "added": "2026-09-20", "snapshot": "3f2a…", "offset": 18234}]}
+```
+
+Stores are searched in order: `<report>/evidence/snapshots/` (committed; redistributable text only) and then `$DEEP_RESEARCH_SNAPSHOTS` or `<vault>/.snapshots/` (private and Git-ignored). `add-evidence --snapshot <digest|prefix|latest>` and `add-quote --snapshot …` refuse text absent from the snapshot and bind the quotation with `snapshot` and `offset`. `--from-file` remains available and records `file_sha256`, but such quotations are unbound.
+
+During validation, a bound quotation whose snapshot is present is re-verified: the stored text must match its hash and contain the quotation. When the snapshot is absent (for example in CI without the private store), the binding is checked structurally and a note reports how many snapshots were unavailable; `validate --verify-snapshots` turns absence into an error. Snapshot `retrieved_at` may not follow the cutoff.
+
+## Claim anchors
+
+Report prose marks where it asserts a claim or hypothesis by placing its ID in braces, normally after the citation group: `…fell 24%.[2]{C3}` or `{C3,C5}`. Anchors are matched as `{ID}` or a comma-separated list, where each ID matches the claim-ID pattern; any brace-wrapped uppercase identifier in prose is treated as an anchor. Within a citation unit (paragraph, list item or table row) containing anchors:
+
+- every anchor must name a claim or hypothesis (a hypothesis stands for its basis claims);
+- every cited source must appear in an anchored claim's `source_ids` or `contradicting_source_ids`;
+- a `fact` or `attributed` claim with sources must be cited through at least one of its own `source_ids`.
+
+Load-bearing claims that appear nowhere in the prose produce a warning. Anchors are removed before citation-coverage and sentence checks, and `reportctl.py reader <report>` prints the report without them for presentation builds.
+
+## Search log
+
+`searches` records how evidence was found, so reviewers can audit coverage and selection:
+
+```json
+{"id": "S4", "question": 2, "purpose": "counter", "engine": "Google Scholar", "query": "Secure Communities crime null effect",
+ "run_at": "2026-09-20T15:10:00Z", "results_considered": 20, "source_ids": [11, 76], "notes": "Found Treyger et al. and Hines–Peri."}
+```
+
+`purpose` is `map` (charting what evidence exists), `support`, `counter` (seeking disconfirmation), `primary` (tracing a summary to its source), `gap` (trying to close a coverage gap) or `update`. `question` is the 1-based report question served, or null. `source_ids` must be assessment sources. `reportctl.py log-search` appends entries with the next `S` ID. Run times may not follow the cutoff.
+
+Claims and hypotheses reference counter-searches through `counter_search_ids`; coverage gaps reference the searches that tried to close them through `search_ids`.
+
+## Research depth
+
+These rules make depth reviewable without pretending to measure it:
+
+- every report question should have at least one logged search;
+- every load-bearing `inference` or `forecast` claim should list `contradicting_source_ids` or link a `counter` search, and every hypothesis should link a `counter` search;
+- `missing-primary`, `access` and `unresolved-contradiction` gaps should list `search_ids`;
+- every assessment source that `report.md` does not cite should carry a `disposition` (`background-only`, `superseded-by-better-source`, `duplicate`, `irrelevant`, `failed-retrieval`, `rejected-unreliable`) with a `disposition_note`; `cited` is also accepted and must be true;
+- a load-bearing claim supported only by `secondary` or `commentary` sources should be traced to primary evidence or named in a `missing-primary` gap's `claim_ids`.
+
+## Attribution and truth
+
+For `attributed` claims, `status` describes the attribution—did the named source say this? Record `underlying_status` (same vocabulary) for whether the attributed proposition is itself established. A confirmed attribution of an unaudited agency statistic is typically `status: confirmed`, `underlying_status: probable`.
+
 ## Temporal coherence
 
-The cutoff is the report's epistemic boundary, so the validator rejects any `retrieved_at`, `captured_at`, or `last_checked` value later than `report.cutoff`, and any `published_at` later than its source's `retrieved_at`. Date-only values compare by calendar day.
+The cutoff is the report's epistemic boundary, so the validator rejects any `retrieved_at`, `captured_at`, or `last_checked` value later than `report.cutoff`, and any `published_at` later than its source's `retrieved_at`. The cutoff may not follow `report.updated`; it may follow `report.created`, because a draft is scaffolded before its evidence window closes. Snapshot retrievals and search runs are also bounded by the cutoff. Date-only values compare by calendar day.
 
 ## Status and confidence
 
@@ -152,13 +207,16 @@ Each entry is either a non-empty string (accepted for compatibility) or an objec
 {"kind": "matrix-cell", "candidate": "Alpha", "criterion": "delivered cost", "description": "No all-in quote at cutoff.", "claim_ids": ["C7"]}
 ```
 
-`kind` is one of `matrix-cell`, `access`, `missing-primary`, `unresolved-identity`, `unresolved-contradiction`, `not-researched`, `other`. `matrix-cell` gaps must name `candidate` and `criterion`; optional `claim_ids` must reference existing claims. Structured gaps let a successor report or a reviewer see exactly which cell, source, or identity was unresolved instead of parsing prose.
+`kind` is one of `matrix-cell`, `access`, `missing-primary`, `unresolved-identity`, `unresolved-contradiction`, `not-researched`, `other`. `matrix-cell` gaps must name `candidate` and `criterion`; optional `claim_ids` must reference existing claims; optional `search_ids` must reference logged searches and are expected for `missing-primary`, `access` and `unresolved-contradiction`. Structured gaps let a successor report or a reviewer see exactly which cell, source, or identity was unresolved instead of parsing prose.
 
 ## Lifecycle commands
 
 - `supersede <predecessor> --slug … --title … --cutoff …` creates a dated successor scaffold, copies the predecessor's questions, sets `lineage.supersedes`, and marks the predecessor `superseded` with `lineage.superseded_by`. The predecessor's cutoff and content are untouched.
 - `resolve <report> <H-id> --outcome … --at …` records a hypothesis outcome without editing its probability range. Outcomes `true`/`false` (or yes/no, occurred/did-not-occur) also record a binary `outcome_value` used for scoring.
-- `calibration` summarizes every hypothesis in the vault: open count, resolved count, Brier score over central estimates, and how many outcomes fell inside the stated interval. It is the reason ranges are recorded as numbers rather than adjectives.
+- `calibration` summarizes every hypothesis in the vault: open count, resolved count, Brier score over central estimates, and how many outcomes fell inside the stated interval. It is the reason ranges are recorded as numbers rather than adjectives. With fewer than 20 scored outcomes it says so; small samples cannot separate skill from luck.
+- `due [--as-of …]` lists open hypotheses whose `resolve_by` has arrived.
+
+Open hypotheses should carry `resolve_by` (an ISO date not before the cutoff on which the outcome can be observed) or, when no future observation can score them, an `unresolvable_reason`.
 
 ## Review state
 
@@ -169,3 +227,48 @@ Each entry is either a non-empty string (accepted for compatibility) or an objec
 - `findings_disposition`: list showing how findings were handled;
 - `rereview_required`: boolean recording whether later material changes invalidate the pass;
 - `notes`: remaining uncertainty and review scope.
+
+### Entailment audit
+
+`review.entailment_audit` records a semantic check of a sample:
+
+```json
+{"route": "DeepSeek-V4.1-Flash via Hermes, no author steering", "audited_at": "2026-09-21T02:10:00Z", "seed": 81723, "population": 97,
+ "items": [{"claim_id": "C3", "evidence_id": "E7", "excerpt_verdict": "supports", "prose_verdict": "overstates",
+            "note": "Prose says 'caused'; the audit reports a decline alongside the shift.", "disposition": "Rewrote to 'alongside'."}]}
+```
+
+`audit-sample <report> --size N [--seed S] --out packet.json` draws load-bearing claim/evidence pairs first, includes each excerpt's surrounding snapshot text when available and every anchored passage for the claim, and leaves verdict fields empty. The judge fills `excerpt_verdict` (`supports`, `partial`, `contradicts`, `unrelated`, or null without an excerpt) and `prose_verdict` (`faithful`, `overstates`, `understates`, `contradicts`, `not-anchored`). `record-audit <report> --from-file packet.json --route …` stores the verdicts and reports problem counts. Any problem verdict requires a `disposition`.
+
+### Coverage review
+
+`review.coverage_review` records a review whose task is to find decisive evidence the research missed:
+
+```json
+{"route": "…", "web_access": true, "missing_evidence": ["EOIR in-absentia series", "Hines & Peri (2019)"], "disposition": "Both retrieved; see S12–S14, C40–C42."}
+```
+
+A `reviewed` report without an entailment audit, or without a coverage review that had web access, receives a warning.
+
+## Rule codes
+
+Validator messages for rules added in 0.3.0 start with a code:
+
+| Code | Rule | Severity |
+|---|---|---|
+| P1 | ledger quotation not bound to a snapshot | warning |
+| P2 | malformed snapshot record, or quotation bound to an unrecorded snapshot | error |
+| P3 | stored snapshot altered, or bound quotation absent from it | error |
+| P4 | bound snapshot missing locally under `--verify-snapshots` | error (flag only) |
+| A1 | anchor names no claim or hypothesis | error |
+| A2 | anchored passage cites a foreign source, or a factual claim without its own support | error |
+| A3 | load-bearing claim not anchored in the prose | warning |
+| D1 | no search log, question without a search, or malformed search entry | warning / error when malformed |
+| D2 | load-bearing judgment without contradicting sources or counter-search; unknown counter-search IDs | warning / error |
+| D3 | searched-kind gap without `search_ids`; unknown search IDs | warning / error |
+| D4 | retrieved source neither cited nor dispositioned; invalid disposition | warning / error |
+| D5 | load-bearing claim resting only on secondary/commentary sources | warning |
+| D6 | load-bearing attributed claim without `underlying_status`; invalid value | warning / error |
+| C1 | open hypothesis without `resolve_by` or `unresolvable_reason`; invalid date | warning / error |
+| R1 | reviewed report without entailment audit; malformed audit or undispositioned problem | warning / error |
+| R2 | reviewed report without web-enabled coverage review; malformed record | warning / error |

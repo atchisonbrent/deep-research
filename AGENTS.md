@@ -1,4 +1,4 @@
-# Research Reports Repository
+# Deep Research Framework
 
 ## Purpose
 
@@ -13,6 +13,8 @@ This public repository owns the reusable deep-research methodology, schema, stan
 - Separate observed facts, attributed claims, inference, forecast, and unknowns.
 - Use probability **ranges**, not faux-precise point estimates, for contested hypotheses.
 - Preserve the report cutoff. Later knowledge belongs in a dated update, not a silent rewrite.
+- Keep `schema/*.schema.json` in step with `tools/reportctl.py`; the schema sync test enforces the vocabularies.
+- New validator rules that older reports could fail ship as warnings with a rule code documented in `SCHEMA.md`, and as a minor (breaking) release.
 - Never commit credentials, private personal data, classified/leaked secret material, or full copyrighted article dumps.
 
 ## Report contract
@@ -27,6 +29,7 @@ Run before commit:
 
 ```bash
 python3 tools/reportctl.py validate <report-directory>
+python3 tools/reportctl.py validate --strict tests/fixtures/minimal-report
 python3 tools/reportctl.py validate examples/iran-war-six-month-assessment
 python3 tools/install-skill.py check --consumer all --home <test-home>
 python3 -m unittest discover -s tests -v

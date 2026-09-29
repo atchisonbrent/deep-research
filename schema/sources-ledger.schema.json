@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/atchisonbrent/deep-research/schema/sources-ledger.schema.json",
+  "title": "deep-research sources-ledger.json",
+  "type": "object",
+  "required": [
+    "version",
+    "sources"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "title",
+          "accessed"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "accessed": {
+            "type": "string",
+            "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+          },
+          "snapshots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "sha256",
+                "method",
+                "retrieved_at"
+              ],
+              "properties": {
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "method": {
+                  "enum": [
+                    "fetch",
+                    "capture"
+                  ]
+                },
+                "retrieved_at": {
+                  "type": "string",
+                  "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+                },
+                "store": {
+                  "enum": [
+                    "vault",
+                    "report"
+                  ]
+                },
+                "final_url": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "integer"
+                },
+                "content_type": {
+                  "type": "string"
+                },
+                "raw_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "quotes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "text"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "added": {
+                  "type": "string",
+                  "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+                },
+                "snapshot": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "offset": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "file_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

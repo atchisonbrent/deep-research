@@ -4,13 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import random
 import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import snapshots  # noqa: E402  (sibling standard-library module)
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS = ROOT / "reports"
@@ -49,6 +54,14 @@ SENTENCE_RE = re.compile(r".*?[.!?][\"'\u201d\u2019)]*(?:\[\d+\])*(?=\s+|$)|.+$"
 PLACEHOLDER_MARKER = "[[deep-research placeholder]]"
 PLACEHOLDER_PREFIX = PLACEHOLDER_MARKER + " Replace with "
 EVIDENCE_KINDS = {"excerpt", "artifact"}
+# Claim anchors tie report prose to assessment claims or hypotheses: ``…text.[3]{C4}``.
+ANCHOR_RE = re.compile(r"\{([A-Z][A-Z0-9_-]{1,31}(?:\s*,\s*[A-Z][A-Z0-9_-]{1,31})*)\}")
+SEARCH_PURPOSES = {"map", "support", "counter", "primary", "gap", "update"}
+SOURCE_DISPOSITIONS = {"cited", "background-only", "superseded-by-better-source", "duplicate", "irrelevant", "failed-retrieval", "rejected-unreliable"}
+EXCERPT_VERDICTS = {"supports", "partial", "contradicts", "unrelated"}
+PROSE_VERDICTS = {"faithful", "overstates", "understates", "contradicts", "not-anchored"}
+# Gaps that claim evidence was sought must show the searches that sought it.
+SEARCHED_GAP_KINDS = {"missing-primary", "access", "unresolved-contradiction"}
 GAP_KINDS = {"matrix-cell", "access", "missing-primary", "unresolved-identity", "unresolved-contradiction", "not-researched", "other"}
 
 SOURCE_TYPES = {
@@ -447,15 +460,21 @@ def normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def validate_report(directory: Path, warnings: list[str] | None = None) -> list[str]:
+def validate_report(directory: Path, warnings: list[str] | None = None, *, verify_snapshots: bool = False, notes: list[str] | None = None) -> list[str]:
     """Validate one report directory.
 
     Returns hard errors. Advisory findings that will become errors at the next
     minor framework release are appended to ``warnings`` when a list is supplied.
+    ``notes`` receives informational findings that never fail validation, such
+    as snapshots that are not present in this checkout. With
+    ``verify_snapshots``, every snapshot-bound quotation must be re-verified
+    against locally present snapshot text.
     """
     errors: list[str] = []
     if warnings is None:
         warnings = []
+    if notes is None:
+        notes = []
     directory = directory.resolve()
     require(errors, directory.is_dir(), f"report directory does not exist: {directory}")
     if errors:
@@ -494,8 +513,10 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
     cutoff_dt = parse_temporal(report.get("cutoff"))
     created_dt = parse_temporal(report.get("created"))
     updated_dt = parse_temporal(report.get("updated"))
-    if cutoff_dt and created_dt:
-        require(errors, not_after(report.get("cutoff"), report.get("created")), "report.cutoff must not be after report.created")
+    # A draft is created before its evidence window closes; the cutoff is
+    # bounded by the latest edit, not by scaffold creation.
+    if cutoff_dt and updated_dt:
+        require(errors, not_after(report.get("cutoff"), report.get("updated")), "report.cutoff must not be after report.updated")
     if created_dt and updated_dt:
         require(errors, not_after(report.get("created"), report.get("updated")), "report.created must not be after report.updated")
     lineage = report.get("lineage")
@@ -594,27 +615,29 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         require(errors, source.get("directness") in DIRECTNESS, f"{where}.directness invalid")
         for key in ("incentives", "limitations"):
             require(errors, isinstance(source.get(key), list), f"{where}.{key} must be a list")
-        authors = source.get("authors")
-        require(errors, isinstance(authors, list), f"{where}.authors must be a list")
+        # Author audits are optional: most sources never receive one, and an
+        # omitted list means "not researched", which forces unknown ratings.
+        authors = source.get("authors", [])
+        require(errors, isinstance(authors, list), f"{where}.authors must be a list when present")
         if isinstance(authors, list):
             for author_index, author in enumerate(authors):
                 author_where = f"{where}.authors[{author_index}]"
                 require(errors, isinstance(author, dict), f"{author_where} must be an object")
                 if isinstance(author, dict):
                     require(errors, text(author.get("name")), f"{author_where}.name must be non-empty")
-                    for key in ("expertise_evidence", "track_record_evidence", "conflicts"):
-                        require(errors, key in author, f"{author_where}.{key} is required (use 'unknown' when not researched)")
                     expertise_url = author.get("expertise_url")
                     require(errors, expertise_url is None or valid_url(expertise_url), f"{author_where}.expertise_url must be null or http(s)")
         reliability = source.get("reliability")
         require(errors, isinstance(reliability, dict), f"{where}.reliability must be an object")
         if isinstance(reliability, dict):
-            for key in ("publisher_history", "author_expertise", "author_track_record", "transparency"):
+            for key in ("publisher_history", "transparency"):
                 require(errors, reliability.get(key) in RATINGS, f"{where}.reliability.{key} invalid")
+            for key in ("author_expertise", "author_track_record"):
+                require(errors, reliability.get(key, "unknown") in RATINGS, f"{where}.reliability.{key} invalid")
             require(errors, text(reliability.get("notes")), f"{where}.reliability.notes must explain the rating")
             if not authors:
-                require(errors, reliability.get("author_expertise") == "unknown", f"{where} has no authors, so author_expertise must be unknown")
-                require(errors, reliability.get("author_track_record") == "unknown", f"{where} has no authors, so author_track_record must be unknown")
+                require(errors, reliability.get("author_expertise", "unknown") == "unknown", f"{where} has no authors, so author_expertise must be unknown")
+                require(errors, reliability.get("author_track_record", "unknown") == "unknown", f"{where} has no authors, so author_track_record must be unknown")
             if reliability.get("author_expertise") == "high" and isinstance(authors, list):
                 require(errors, any(valid_url(author.get("expertise_url")) for author in authors if isinstance(author, dict)), f"{where} high author expertise requires a retrievable expertise_url")
         if isinstance(source_id, int):
@@ -845,6 +868,8 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
     for source_id, url in listed.items():
         if source_id in ledger_by_id:
             require(errors, url == ledger_by_id[source_id]["url"], f"Sources block URL for [{source_id}] differs from ledger")
+    anchored_body = body
+    body = strip_anchors(body)
     sentences = prose_sentences(body)
     units = prose_units(body)
     covered = [unit for unit in units if citation_scope_valid(unit)]
@@ -863,7 +888,354 @@ def validate_report(directory: Path, warnings: list[str] | None = None) -> list[
         for key in ("title", "slug", "mode", "domain", "cutoff", "status"):
             require(errors, fields.get(key) == str(report.get(key, "")), f"report.md frontmatter {key} differs from assessment.json")
     require(errors, PLACEHOLDER_MARKER not in body, "report.md still contains init placeholder text")
+
+    hypothesis_by_id = {h["id"]: h for h in hypotheses if isinstance(h, dict) and isinstance(h.get("id"), str)}
+    context = ReportContext(
+        directory=directory,
+        assessment=assessment,
+        report=report,
+        ledger_by_id=ledger_by_id,
+        source_by_id=source_by_id,
+        claim_by_id=claim_by_id,
+        hypothesis_by_id=hypothesis_by_id,
+        evidence=[item for item in evidence if isinstance(item, dict)],
+        gaps=gaps if isinstance(gaps, list) else [],
+        review=review if isinstance(review, dict) else {},
+        body=anchored_body,
+        cited=cited,
+    )
+    check_provenance(context, errors, warnings, notes, verify_snapshots)
+    check_anchors(context, errors, warnings)
+    check_depth(context, errors, warnings)
+    check_calibration(context, errors, warnings)
+    check_review_evidence(context, errors, warnings)
     return errors
+
+
+def strip_anchors(value: str) -> str:
+    """Remove claim anchors so reader-facing text and citation checks see plain prose."""
+    return re.sub(r"[ \t]*" + ANCHOR_RE.pattern, "", value)
+
+
+def anchor_ids(unit: str) -> list[str]:
+    return [part.strip() for match in ANCHOR_RE.finditer(unit) for part in match.group(1).split(",")]
+
+
+def shorten(value: str, limit: int = 90) -> str:
+    value = normalize_whitespace(value)
+    return value if len(value) <= limit else value[: limit - 1] + "…"
+
+
+def summarize_ids(values: list[Any], limit: int = 12) -> str:
+    shown = ", ".join(str(value) for value in values[:limit])
+    return shown + (f", … (+{len(values) - limit} more)" if len(values) > limit else "")
+
+
+class ReportContext:
+    """Parsed report state shared by the rule families below."""
+
+    def __init__(self, **values: Any) -> None:
+        self.__dict__.update(values)
+        self.cutoff = self.report.get("cutoff")
+        questions = self.report.get("questions")
+        self.questions = questions if isinstance(questions, list) else []
+
+    def claim_sources(self, claim_id: str, *, contradicting: bool = True) -> set[int]:
+        claim = self.claim_by_id.get(claim_id) or {}
+        found = set(claim.get("source_ids") or [])
+        if contradicting:
+            found |= set(claim.get("contradicting_source_ids") or [])
+        return {value for value in found if isinstance(value, int)}
+
+
+def check_provenance(ctx: ReportContext, errors: list[str], warnings: list[str], notes: list[str], verify_snapshots: bool) -> None:
+    """[P] Ledger quotations must be bound to fetched or captured source text.
+
+    A quote bound to a snapshot names the SHA-256 of the extracted text it was
+    verified against. When that text is present locally, the validator
+    re-verifies both the hash and the quotation, so edited snapshots and
+    drifted quotes fail. When it is absent (for example in CI without the
+    private store), the binding is still checked structurally.
+    """
+    unbound: list[int] = []
+    absent: list[str] = []
+    verified = 0
+    for source_id, source in sorted(ctx.ledger_by_id.items()):
+        records = source.get("snapshots")
+        if records is None:
+            records = []
+        if not isinstance(records, list):
+            errors.append(f"[P2] sources-ledger source {source_id}.snapshots must be a list")
+            records = []
+        digests: set[str] = set()
+        for index, record in enumerate(records):
+            where = f"[P2] sources-ledger source {source_id}.snapshots[{index}]"
+            if not isinstance(record, dict):
+                errors.append(f"{where} must be an object")
+                continue
+            require(errors, snapshots.valid_digest(record.get("sha256")), f"{where}.sha256 must be a lowercase SHA-256 hex digest")
+            require(errors, record.get("method") in {"fetch", "capture"}, f"{where}.method must be fetch or capture")
+            require(errors, parse_temporal(record.get("retrieved_at")) is not None, f"{where}.retrieved_at must be an ISO date or datetime")
+            if ctx.cutoff and parse_temporal(record.get("retrieved_at")) is not None:
+                require(errors, not_after(record.get("retrieved_at"), ctx.cutoff), f"{where}.retrieved_at is after the report cutoff")
+            if snapshots.valid_digest(record.get("sha256")):
+                digests.add(record["sha256"])
+        for index, quote in enumerate(source.get("quotes") or []):
+            digest = quote.get("snapshot")
+            if digest is None:
+                unbound.append(source_id)
+                continue
+            where = f"[P2] sources-ledger source {source_id}.quotes[{index}]"
+            if not snapshots.valid_digest(digest) or digest not in digests:
+                errors.append(f"{where}.snapshot does not name a snapshot recorded on source {source_id}")
+                continue
+            snapshot_text = snapshots.read_snapshot(ROOT, ctx.directory, digest)
+            if snapshot_text is None:
+                absent.append(digest[:12])
+                continue
+            if snapshots.sha256_text(snapshot_text) != digest:
+                errors.append(f"[P3] snapshot {digest[:12]}… for source {source_id} no longer matches its hash; the stored text was altered")
+            elif snapshots.locate(str(quote.get("text", "")), snapshot_text) < 0:
+                errors.append(f"[P3] {where} is not present in snapshot {digest[:12]}…")
+            else:
+                verified += 1
+    if unbound:
+        warnings.append(
+            f"[P1] {len(unbound)} ledger quotation(s) are not bound to a fetched or captured snapshot (sources {summarize_ids(sorted(set(unbound)))}); "
+            "record source text with `fetch` or `capture`, then `add-evidence --snapshot`"
+        )
+    if absent:
+        unique = sorted(set(absent))
+        message = f"{len(unique)} snapshot(s) bound to quotations are not present in this checkout ({summarize_ids(unique, 5)})"
+        if verify_snapshots:
+            errors.append(f"[P4] {message}; restore the snapshot store before claiming re-verification")
+        else:
+            notes.append(f"{message}; quotations were checked structurally only. Use --verify-snapshots where the store is available")
+    if verified:
+        notes.append(f"{verified} snapshot-bound quotation(s) re-verified against stored source text")
+
+
+def check_anchors(ctx: ReportContext, errors: list[str], warnings: list[str]) -> None:
+    """[A] Claim anchors bind passages of prose to the claims they assert.
+
+    In an anchored passage, every citation must belong to an anchored claim
+    (as support or contradiction), and a factual or attributed claim must be
+    cited through at least one of its own sources. Load-bearing claims that
+    never appear in the prose are reported so a reader can find where each
+    conclusion is made.
+    """
+    anchored: set[str] = set()
+    for unit in prose_units(ctx.body):
+        ids = anchor_ids(unit)
+        if not ids:
+            continue
+        unknown = [value for value in ids if value not in ctx.claim_by_id and value not in ctx.hypothesis_by_id]
+        if unknown:
+            errors.append(f"[A1] anchor {{{','.join(unknown)}}} names no claim or hypothesis: {shorten(strip_anchors(unit))}")
+            continue
+        anchored.update(ids)
+        allowed: set[int] = set()
+        for value in ids:
+            if value in ctx.claim_by_id:
+                allowed |= ctx.claim_sources(value)
+            else:
+                for basis in ctx.hypothesis_by_id[value].get("basis_claim_ids") or []:
+                    if isinstance(basis, str):
+                        allowed |= ctx.claim_sources(basis)
+        cited_here = {int(value) for value in CITE_RE.findall(unit)}
+        extra = sorted(cited_here - allowed)
+        if extra:
+            errors.append(f"[A2] passage anchored to {','.join(ids)} cites {extra}, which no anchored claim lists as support or contradiction: {shorten(strip_anchors(unit))}")
+        for value in ids:
+            claim = ctx.claim_by_id.get(value)
+            if claim and claim.get("kind") in {"fact", "attributed"} and claim.get("source_ids"):
+                if not cited_here & ctx.claim_sources(value, contradicting=False):
+                    errors.append(f"[A2] passage anchored to {value} cites none of that claim's supporting sources: {shorten(strip_anchors(unit))}")
+    missing = [claim_id for claim_id, claim in ctx.claim_by_id.items() if claim.get("importance") == "load-bearing" and claim_id not in anchored]
+    if missing:
+        warnings.append(f"[A3] {len(missing)} load-bearing claim(s) are not anchored in report.md ({summarize_ids(missing)}); mark where each is asserted with {{CLAIM-ID}} after its citation")
+
+
+def check_depth(ctx: ReportContext, errors: list[str], warnings: list[str]) -> None:
+    """[D] Research depth: a search log, sought counter-evidence, dispositioned sources."""
+    searches = ctx.assessment.get("searches", [])
+    search_by_id: dict[str, dict[str, Any]] = {}
+    if not isinstance(searches, list):
+        errors.append("[D1] searches must be a list when present")
+        searches = []
+    for index, search in enumerate(searches):
+        where = f"[D1] searches[{index}]"
+        if not isinstance(search, dict):
+            errors.append(f"{where} must be an object")
+            continue
+        search_id = search.get("id")
+        if not (isinstance(search_id, str) and ID_RE.fullmatch(search_id)):
+            errors.append(f"{where}.id must match {ID_RE.pattern}")
+            continue
+        require(errors, search_id not in search_by_id, f"{where} duplicates search id {search_id}")
+        search_by_id[search_id] = search
+        require(errors, text(search.get("query")), f"{where}.query must be non-empty")
+        require(errors, text(search.get("engine")), f"{where}.engine must name the search tool or database")
+        require(errors, search.get("purpose") in SEARCH_PURPOSES, f"{where}.purpose must be one of {sorted(SEARCH_PURPOSES)}")
+        require(errors, parse_temporal(search.get("run_at")) is not None, f"{where}.run_at must be an ISO date or datetime")
+        if ctx.cutoff and parse_temporal(search.get("run_at")) is not None:
+            require(errors, not_after(search.get("run_at"), ctx.cutoff), f"{where}.run_at is after the report cutoff")
+        question = search.get("question")
+        require(errors, question is None or (isinstance(question, int) and not isinstance(question, bool) and 1 <= question <= len(ctx.questions)), f"{where}.question must be null or a 1-based report question number")
+        considered = search.get("results_considered")
+        require(errors, considered is None or (isinstance(considered, int) and not isinstance(considered, bool) and considered >= 0), f"{where}.results_considered must be null or a non-negative integer")
+        found = search.get("source_ids", [])
+        require(errors, isinstance(found, list) and all(value in ctx.source_by_id for value in found), f"{where}.source_ids must reference assessment sources")
+
+    if not search_by_id:
+        warnings.append("[D1] no search log; record discovery, primary-record and counter-evidence searches with `log-search` so coverage and selection can be audited")
+    else:
+        unsearched = [number for number in range(1, len(ctx.questions) + 1) if not any(s.get("question") == number for s in search_by_id.values())]
+        if unsearched:
+            warnings.append(f"[D1] report question(s) {summarize_ids(unsearched)} have no logged search")
+
+    def counter_searched(item: dict[str, Any], where: str) -> bool:
+        refs = item.get("counter_search_ids", [])
+        if not isinstance(refs, list) or not all(isinstance(ref, str) for ref in refs):
+            errors.append(f"[D2] {where}.counter_search_ids must be a list of search ids")
+            return False
+        unknown = [ref for ref in refs if ref not in search_by_id]
+        if unknown:
+            errors.append(f"[D2] {where}.counter_search_ids reference unknown searches {unknown}")
+        return any(search_by_id.get(ref, {}).get("purpose") == "counter" for ref in refs)
+
+    unchallenged: list[str] = []
+    for claim_id, claim in ctx.claim_by_id.items():
+        searched = counter_searched(claim, f"claim {claim_id}")
+        if claim.get("importance") != "load-bearing" or claim.get("kind") not in {"inference", "forecast"}:
+            continue
+        if not claim.get("contradicting_source_ids") and not searched:
+            unchallenged.append(claim_id)
+    for hypothesis_id, hypothesis in ctx.hypothesis_by_id.items():
+        if not counter_searched(hypothesis, f"hypothesis {hypothesis_id}"):
+            unchallenged.append(hypothesis_id)
+    if unchallenged:
+        warnings.append(
+            f"[D2] {len(unchallenged)} load-bearing judgment(s) show no sought counter-evidence ({summarize_ids(unchallenged)}); "
+            "record contradicting sources or link a `counter` search through counter_search_ids"
+        )
+
+    unsearched_gaps: list[int] = []
+    missing_primary_claims: set[str] = set()
+    for index, gap in enumerate(ctx.gaps):
+        if not isinstance(gap, dict):
+            continue
+        refs = gap.get("search_ids", [])
+        if not isinstance(refs, list) or any(ref not in search_by_id for ref in refs):
+            errors.append(f"[D3] coverage_gaps[{index}].search_ids must reference logged searches")
+            refs = []
+        if gap.get("kind") in SEARCHED_GAP_KINDS and not refs:
+            unsearched_gaps.append(index)
+        if gap.get("kind") == "missing-primary":
+            missing_primary_claims.update(value for value in gap.get("claim_ids", []) if isinstance(value, str))
+    if unsearched_gaps:
+        warnings.append(f"[D3] coverage gap(s) {summarize_ids(unsearched_gaps)} assert evidence was missing or inaccessible without linking the searches that tried; add search_ids")
+
+    undispositioned: list[int] = []
+    for source_id, source in ctx.source_by_id.items():
+        disposition = source.get("disposition")
+        if disposition is not None:
+            require(errors, disposition in SOURCE_DISPOSITIONS, f"[D4] source {source_id}.disposition must be one of {sorted(SOURCE_DISPOSITIONS)}")
+            if disposition == "cited":
+                require(errors, source_id in ctx.cited, f"[D4] source {source_id} is dispositioned 'cited' but report.md does not cite it")
+            elif disposition in SOURCE_DISPOSITIONS - {"cited"}:
+                require(errors, text(source.get("disposition_note")), f"[D4] source {source_id}.disposition_note must explain why a retrieved source is not cited")
+        elif source_id not in ctx.cited:
+            undispositioned.append(source_id)
+    if undispositioned:
+        warnings.append(
+            f"[D4] {len(undispositioned)} retrieved source(s) are neither cited nor dispositioned ({summarize_ids(sorted(undispositioned))}); "
+            "use them or record why not, so strong evidence is not silently left on the table"
+        )
+
+    secondary_only: list[str] = []
+    for claim_id, claim in ctx.claim_by_id.items():
+        if claim.get("importance") != "load-bearing" or claim_id in missing_primary_claims:
+            continue
+        supporting = [ctx.source_by_id[value] for value in claim.get("source_ids") or [] if value in ctx.source_by_id]
+        if supporting and all(source.get("directness") in {"secondary", "commentary"} for source in supporting):
+            secondary_only.append(claim_id)
+    if secondary_only:
+        warnings.append(f"[D5] load-bearing claim(s) {summarize_ids(secondary_only)} rest only on secondary or commentary sources; trace them to primary evidence or record a missing-primary gap naming the claim")
+
+    unassessed: list[str] = []
+    for claim_id, claim in ctx.claim_by_id.items():
+        if claim.get("kind") != "attributed":
+            continue
+        underlying = claim.get("underlying_status")
+        if underlying is not None:
+            require(errors, underlying in CLAIM_STATUS, f"[D6] claim {claim_id}.underlying_status must be one of {sorted(CLAIM_STATUS)}")
+        elif claim.get("importance") == "load-bearing":
+            unassessed.append(claim_id)
+    if unassessed:
+        warnings.append(
+            f"[D6] load-bearing attributed claim(s) {summarize_ids(unassessed)} lack underlying_status; `status` says whether the source said it, "
+            "underlying_status says whether what it said is established"
+        )
+
+
+def check_calibration(ctx: ReportContext, errors: list[str], warnings: list[str]) -> None:
+    """[C] Open hypotheses need a date on which they can be scored, or a reason they cannot."""
+    undated: list[str] = []
+    for hypothesis_id, hypothesis in ctx.hypothesis_by_id.items():
+        resolve_by = hypothesis.get("resolve_by")
+        if resolve_by is not None:
+            require(errors, parse_temporal(resolve_by) is not None, f"[C1] hypothesis {hypothesis_id}.resolve_by must be null or an ISO date")
+            if ctx.cutoff and parse_temporal(resolve_by) is not None:
+                require(errors, not_after(ctx.cutoff, resolve_by), f"[C1] hypothesis {hypothesis_id}.resolve_by must not precede the report cutoff")
+        resolution = hypothesis.get("resolution") if isinstance(hypothesis.get("resolution"), dict) else {}
+        if resolution.get("status") == "open" and resolve_by is None and not text(hypothesis.get("unresolvable_reason")):
+            undated.append(hypothesis_id)
+    if undated:
+        warnings.append(f"[C1] open hypothesis(es) {summarize_ids(undated)} have neither resolve_by nor unresolvable_reason; unscored forecasts cannot calibrate anything")
+
+
+def check_review_evidence(ctx: ReportContext, errors: list[str], warnings: list[str]) -> None:
+    """[R] Semantic audit and coverage review records."""
+    evidence_ids = {item.get("id") for item in ctx.evidence}
+    audit = ctx.review.get("entailment_audit")
+    if audit is not None:
+        if not isinstance(audit, dict):
+            errors.append("[R1] review.entailment_audit must be an object")
+        else:
+            require(errors, text(audit.get("route")), "[R1] review.entailment_audit.route must name who judged the sample")
+            require(errors, parse_temporal(audit.get("audited_at")) is not None, "[R1] review.entailment_audit.audited_at must be ISO-8601")
+            items = audit.get("items")
+            require(errors, isinstance(items, list) and bool(items), "[R1] review.entailment_audit.items must be a non-empty list")
+            for index, item in enumerate(items if isinstance(items, list) else []):
+                where = f"[R1] review.entailment_audit.items[{index}]"
+                if not isinstance(item, dict):
+                    errors.append(f"{where} must be an object")
+                    continue
+                require(errors, item.get("claim_id") in ctx.claim_by_id, f"{where}.claim_id must name a claim")
+                require(errors, item.get("evidence_id") is None or item.get("evidence_id") in evidence_ids, f"{where}.evidence_id must be null or name an evidence record")
+                excerpt_verdict = item.get("excerpt_verdict")
+                prose_verdict = item.get("prose_verdict")
+                require(errors, excerpt_verdict is None or excerpt_verdict in EXCERPT_VERDICTS, f"{where}.excerpt_verdict must be null or one of {sorted(EXCERPT_VERDICTS)}")
+                require(errors, prose_verdict is None or prose_verdict in PROSE_VERDICTS, f"{where}.prose_verdict must be null or one of {sorted(PROSE_VERDICTS)}")
+                require(errors, excerpt_verdict is not None or prose_verdict is not None, f"{where} must record an excerpt or prose verdict")
+                problem = (excerpt_verdict not in (None, "supports")) or (prose_verdict not in (None, "faithful", "not-anchored"))
+                if problem:
+                    require(errors, text(item.get("disposition")), f"{where} records a problem verdict and needs a disposition describing the repair or why it stands")
+    coverage = ctx.review.get("coverage_review")
+    if coverage is not None:
+        if not isinstance(coverage, dict):
+            errors.append("[R2] review.coverage_review must be an object")
+        else:
+            require(errors, text(coverage.get("route")), "[R2] review.coverage_review.route must name the reviewer")
+            require(errors, isinstance(coverage.get("web_access"), bool), "[R2] review.coverage_review.web_access must be a boolean")
+            require(errors, isinstance(coverage.get("missing_evidence"), list), "[R2] review.coverage_review.missing_evidence must list what the reviewer found missing (empty when nothing)")
+            require(errors, text(coverage.get("disposition")), "[R2] review.coverage_review.disposition must say how the findings were handled")
+    if ctx.report.get("status") == "reviewed":
+        if audit is None:
+            warnings.append("[R1] reviewed report has no entailment audit; sample claim/excerpt/prose pairs with `audit-sample` and record verdicts with `record-audit`")
+        if not isinstance(coverage, dict) or coverage.get("web_access") is not True:
+            warnings.append("[R2] reviewed report has no coverage review with web access; a reviewer limited to the supplied files cannot find what the research missed")
 
 
 def render_sources(directory: Path) -> None:
@@ -876,7 +1248,7 @@ def render_sources(directory: Path) -> None:
     for source in ledger.get("sources", []):
         if source["id"] in cited:
             lines.append(f"[{source['id']}] {source['url']} — {source['title']}")
-    markdown_path.write_text(body.rstrip() + "\n\n" + "\n".join(lines) + "\n", encoding="utf-8")
+    write_text_atomic(markdown_path, body.rstrip() + "\n\n" + "\n".join(lines) + "\n")
 
 
 def add_source(directory: Path, url: str, title: str, accessed: str) -> int:
@@ -921,8 +1293,14 @@ def ledger_source(ledger: Any, source_id: int) -> dict[str, Any]:
     return source
 
 
-def record_quote(ledger: Any, source_id: int, quote: str) -> bool:
-    """Append ``quote`` to the ledger source in memory; return True when it was new."""
+def record_quote(ledger: Any, source_id: int, quote: str, binding: dict[str, Any] | None = None) -> bool:
+    """Record ``quote`` on the ledger source in memory; return True when the ledger changed.
+
+    ``binding`` carries provenance: ``{"snapshot": digest, "offset": n}`` for
+    snapshot-verified text or ``{"file_sha256": digest}`` for an
+    analyst-supplied file. An existing unbound record of the same text gains a
+    snapshot binding; an existing snapshot binding is never replaced.
+    """
     source = ledger_source(ledger, source_id)
     quotes = source.get("quotes")
     if quotes is None:
@@ -930,24 +1308,64 @@ def record_quote(ledger: Any, source_id: int, quote: str) -> bool:
         source["quotes"] = quotes
     if not isinstance(quotes, list) or not all(isinstance(item, dict) for item in quotes):
         raise ValueError(f"source {source_id} has a malformed quotes list; repair sources-ledger.json first")
-    if any(isinstance(item, dict) and normalize_whitespace(str(item.get("text", ""))) == normalize_whitespace(quote) for item in quotes):
-        return False
-    quotes.append({"text": quote, "added": datetime.now(timezone.utc).date().isoformat()})
+    binding = binding or {}
+    for item in quotes:
+        if normalize_whitespace(str(item.get("text", ""))) == normalize_whitespace(quote):
+            if binding.get("snapshot") and not item.get("snapshot"):
+                item.pop("file_sha256", None)
+                item.update(binding)
+                return True
+            return False
+    quotes.append({"text": quote, "added": datetime.now(timezone.utc).date().isoformat(), **binding})
     return True
 
 
-def add_quote(directory: Path, source_id: int, quote: str, evidence_file: Path) -> None:
-    """Verify ``quote`` against ``evidence_file`` and record it in the ledger.
+def quote_binding(directory: Path, ledger: Any, source_id: int, quote: str, evidence_file: Path | None, snapshot: str | None) -> dict[str, Any]:
+    """Verify ``quote`` against a recorded snapshot or a supplied file and return its provenance binding."""
+    if (evidence_file is None) == (snapshot is None):
+        raise ValueError("supply exactly one of --snapshot or --from-file")
+    if evidence_file is not None:
+        verify_quote(quote, evidence_file)
+        return {"file_sha256": hashlib.sha256(evidence_file.read_bytes()).hexdigest()}
+    if not text(quote):
+        raise ValueError("quote text must be non-empty")
+    if len(quote) > 1000:
+        raise ValueError("quote exceeds 1000 characters; keep excerpts short")
+    source = ledger_source(ledger, source_id)
+    records = [record for record in source.get("snapshots") or [] if isinstance(record, dict) and snapshots.valid_digest(record.get("sha256"))]
+    if not records:
+        raise ValueError(f"source {source_id} has no recorded snapshot; run `fetch` or `capture` first")
+    if snapshot == "latest":
+        digest = records[-1]["sha256"]
+    else:
+        matches = [record["sha256"] for record in records if record["sha256"].startswith(str(snapshot))]
+        if len(matches) != 1:
+            raise ValueError(f"--snapshot {snapshot!r} does not identify exactly one snapshot recorded on source {source_id}")
+        digest = matches[0]
+    snapshot_text = snapshots.read_snapshot(ROOT, directory, digest)
+    if snapshot_text is None:
+        raise ValueError(f"snapshot {digest[:12]}… is recorded but not present in any snapshot store")
+    if snapshots.sha256_text(snapshot_text) != digest:
+        raise ValueError(f"snapshot {digest[:12]}… does not match its hash; the stored text was altered")
+    offset = snapshots.locate(quote, snapshot_text)
+    if offset < 0:
+        raise ValueError(f"quote was not found verbatim in snapshot {digest[:12]}…")
+    return {"snapshot": digest, "offset": offset}
 
-    The check attests that the quotation matches the caller-supplied text
-    file; it does not and cannot prove the file was fetched from the
-    registered URL. Keep fetched text under the report's ``evidence/``
-    directory so that provenance stays inspectable.
+
+def add_quote(directory: Path, source_id: int, quote: str, evidence_file: Path | None = None, snapshot: str | None = None) -> None:
+    """Verify ``quote`` and record it in the ledger with its provenance binding.
+
+    With ``snapshot``, the quote is checked against source text captured by
+    ``fetch`` or ``capture`` and bound to that text's hash. With
+    ``evidence_file``, the check attests only that the quotation matches a
+    caller-supplied file; the file's hash is recorded, but nothing ties it to
+    the registered URL.
     """
-    verify_quote(quote, evidence_file)
     ledger_path = directory / "sources-ledger.json"
     ledger = load_json(ledger_path)
-    if record_quote(ledger, source_id, quote):
+    binding = quote_binding(directory, ledger, source_id, quote, evidence_file, snapshot)
+    if record_quote(ledger, source_id, quote, binding):
         write_json(ledger_path, ledger)
 
 
@@ -964,10 +1382,11 @@ def add_evidence(
     directory: Path,
     source_id: int,
     quote: str,
-    evidence_file: Path,
+    evidence_file: Path | None,
     claim_ids: list[str],
     location: str,
     captured_at: str,
+    snapshot: str | None = None,
 ) -> str:
     """Verify a quotation, record it in the ledger, and attach a claim-facing evidence record.
 
@@ -987,12 +1406,12 @@ def add_evidence(
         raise ValueError("--location must be non-empty")
     if not valid_datetime(captured_at):
         raise ValueError("--captured-at must be ISO-8601")
-    verify_quote(quote, evidence_file)
 
     assessment_path = directory / "assessment.json"
     ledger_path = directory / "sources-ledger.json"
     assessment = load_json(assessment_path)
     ledger = load_json(ledger_path)
+    binding = quote_binding(directory, ledger, source_id, quote, evidence_file, snapshot)
     if not isinstance(assessment, dict):
         raise ValueError("assessment.json must be an object")
     ledger_entry = ledger_source(ledger, source_id)
@@ -1056,7 +1475,7 @@ def add_evidence(
             f"captured at {existing.get('captured_at')}; reuse those values or edit the record deliberately"
         )
 
-    if record_quote(ledger, source_id, quote):
+    if record_quote(ledger, source_id, quote, binding):
         write_json(ledger_path, ledger)
     if existing is not None:
         if str(existing.get("location")) != location or str(existing.get("captured_at")) != captured_at:
@@ -1080,6 +1499,227 @@ def add_evidence(
     )
     write_json(assessment_path, assessment)
     return str(new_id)
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def record_snapshot(directory: Path, url: str, title: str | None, text_value: str, metadata: dict[str, Any], raw: bytes | None, store: str) -> tuple[int, str]:
+    """Store a snapshot, register or update its ledger source, and attach the snapshot record."""
+    if store not in {"vault", "report"}:
+        raise ValueError("--store must be vault or report")
+    ledger_path = directory / "sources-ledger.json"
+    ledger = load_json(ledger_path)
+    sources = ledger.get("sources") if isinstance(ledger, dict) else None
+    if not isinstance(sources, list):
+        raise ValueError("sources-ledger.json sources must be a list")
+    existing = next((item for item in sources if isinstance(item, dict) and item.get("url") == url), None)
+    if existing is None and not text(title):
+        raise ValueError("--title is required when the URL is not yet in the ledger")
+    retrieved_at = str(metadata.get("retrieved_at") or utc_now())
+    assessment = load_json(directory / "assessment.json")
+    cutoff = (assessment.get("report") or {}).get("cutoff") if isinstance(assessment, dict) else None
+    if cutoff and not not_after(retrieved_at, cutoff):
+        raise ValueError(f"retrieval time {retrieved_at} is after the report cutoff {cutoff}; a later retrieval belongs in a dated successor")
+    target = snapshots.report_store(directory) if store == "report" else snapshots.vault_store(ROOT)
+    digest = snapshots.store_snapshot(target, text_value, {**metadata, "retrieved_at": retrieved_at}, raw)
+    source_id = add_source(directory, url, title or str(existing.get("title")), retrieved_at[:10])
+    ledger = load_json(ledger_path)
+    source = ledger_source(ledger, source_id)
+    records = source.setdefault("snapshots", [])
+    if not isinstance(records, list):
+        raise ValueError(f"source {source_id} has a malformed snapshots list")
+    if not any(isinstance(record, dict) and record.get("sha256") == digest for record in records):
+        entry = {"sha256": digest, "method": metadata.get("method", "capture"), "retrieved_at": retrieved_at, "store": store}
+        for key in ("final_url", "status", "content_type", "raw_sha256", "note"):
+            if metadata.get(key) is not None:
+                entry[key] = metadata[key]
+        records.append(entry)
+        write_json(ledger_path, ledger)
+    return source_id, digest
+
+
+def fetch_source(directory: Path, url: str, title: str | None, store: str) -> tuple[int, str]:
+    if not valid_url(url):
+        raise ValueError("source URL must be http(s)")
+    text_value, metadata, raw = snapshots.fetch(url)
+    return record_snapshot(directory, url, title, text_value, metadata, raw if store == "vault" else None, store)
+
+
+def capture_source(directory: Path, url: str, title: str | None, text_file: Path, retrieved_at: str | None, note: str | None, store: str) -> tuple[int, str]:
+    """Record text obtained outside ``fetch`` (a browser render, PDF extraction, archive copy)."""
+    if not valid_url(url):
+        raise ValueError("source URL must be http(s)")
+    if retrieved_at is not None and parse_temporal(retrieved_at) is None:
+        raise ValueError("--retrieved-at must be ISO-8601")
+    text_value = text_file.read_text(encoding="utf-8")
+    if not text(text_value):
+        raise ValueError("captured text is empty")
+    metadata = {"method": "capture", "url": url, "retrieved_at": retrieved_at or utc_now(), "note": note}
+    return record_snapshot(directory, url, title, text_value, metadata, None, store)
+
+
+def log_search(directory: Path, query: str, engine: str, purpose: str, question: int | None, source_ids: list[int], considered: int | None, note: str | None, run_at: str | None) -> str:
+    if purpose not in SEARCH_PURPOSES:
+        raise ValueError(f"--purpose must be one of {sorted(SEARCH_PURPOSES)}")
+    if not text(query) or not text(engine):
+        raise ValueError("--query and --engine must be non-empty")
+    run_at = run_at or utc_now()
+    if parse_temporal(run_at) is None:
+        raise ValueError("--at must be ISO-8601")
+    path = directory / "assessment.json"
+    assessment = load_json(path)
+    if not isinstance(assessment, dict):
+        raise ValueError("assessment.json must be an object")
+    report = assessment.get("report") if isinstance(assessment.get("report"), dict) else {}
+    if report.get("cutoff") and not not_after(run_at, report["cutoff"]):
+        raise ValueError("search time is after the report cutoff")
+    questions = report.get("questions") if isinstance(report.get("questions"), list) else []
+    if question is not None and not 1 <= question <= len(questions):
+        raise ValueError(f"--question must be between 1 and {len(questions)}")
+    known = {item.get("id") for item in assessment.get("sources", []) if isinstance(item, dict)}
+    unknown = [value for value in source_ids if value not in known]
+    if unknown:
+        raise ValueError(f"--source ids {unknown} have no assessment.json sources entry")
+    searches = assessment.setdefault("searches", [])
+    if not isinstance(searches, list):
+        raise ValueError("assessment.json searches must be a list")
+    search_id = next_prefixed_id([item.get("id") for item in searches if isinstance(item, dict)], "S")
+    entry: dict[str, Any] = {"id": search_id, "question": question, "purpose": purpose, "engine": engine, "query": query, "run_at": run_at, "results_considered": considered, "source_ids": source_ids}
+    if text(note):
+        entry["notes"] = note
+    searches.append(entry)
+    write_json(path, assessment)
+    return search_id
+
+
+def audit_sample(directory: Path, size: int, seed: int | None) -> dict[str, Any]:
+    """Draw a reproducible sample of claim/evidence/prose triples for semantic review.
+
+    Every load-bearing claim is eligible; the sample prefers load-bearing
+    claims and then fills with others. Each item carries the claim, its
+    evidence excerpt with surrounding snapshot context when available, and the
+    anchored report passages that assert it, so a reviewer can judge both
+    whether the excerpt supports the claim and whether the prose is faithful to it.
+    """
+    if size < 1:
+        raise ValueError("--size must be positive")
+    seed = seed if seed is not None else random.SystemRandom().randrange(1, 2**31)
+    assessment = load_json(directory / "assessment.json")
+    ledger = load_json(directory / "sources-ledger.json")
+    body, _ = report_body_and_sources((directory / "report.md").read_text(encoding="utf-8"))
+    claims = {c["id"]: c for c in assessment.get("claims", []) if isinstance(c, dict) and isinstance(c.get("id"), str)}
+    evidence = [e for e in assessment.get("evidence", []) if isinstance(e, dict)]
+    passages: dict[str, list[str]] = {}
+    for unit in prose_units(body):
+        for claim_id in anchor_ids(unit):
+            passages.setdefault(claim_id, []).append(strip_anchors(unit))
+    pairs: list[tuple[str, dict[str, Any] | None]] = []
+    for claim_id, claim in claims.items():
+        items = [e for e in evidence if claim_id in (e.get("supports_claim_ids") or [])]
+        for item in items or [None]:
+            pairs.append((claim_id, item))
+    rng = random.Random(seed)
+    load_bearing = [pair for pair in pairs if claims[pair[0]].get("importance") == "load-bearing"]
+    others = [pair for pair in pairs if pair not in load_bearing]
+    rng.shuffle(load_bearing)
+    rng.shuffle(others)
+    chosen = (load_bearing + others)[:size]
+    ledger_by_id = {s.get("id"): s for s in ledger.get("sources", []) if isinstance(s, dict)}
+    items_out = []
+    for claim_id, item in chosen:
+        context_text = ""
+        if item is not None and item.get("kind", "excerpt") == "excerpt":
+            for quote in (ledger_by_id.get(item.get("source_id")) or {}).get("quotes", []) or []:
+                if normalize_whitespace(str(quote.get("text", ""))) == normalize_whitespace(str(item.get("excerpt", ""))) and quote.get("snapshot"):
+                    snapshot_text = snapshots.read_snapshot(ROOT, directory, quote["snapshot"])
+                    if snapshot_text:
+                        context_text = snapshots.context(item["excerpt"], snapshot_text)
+                    break
+        claim = claims[claim_id]
+        items_out.append({
+            "claim_id": claim_id,
+            "claim": claim.get("statement"),
+            "claim_kind": claim.get("kind"),
+            "claim_status": claim.get("status"),
+            "evidence_id": item.get("id") if item else None,
+            "evidence_kind": item.get("kind", "excerpt") if item else None,
+            "source_id": item.get("source_id") if item else None,
+            "source_url": (ledger_by_id.get(item.get("source_id")) or {}).get("url") if item else None,
+            "excerpt": item.get("excerpt") if item else None,
+            "snapshot_context": context_text or None,
+            "report_passages": passages.get(claim_id, []),
+            "excerpt_verdict": None,
+            "prose_verdict": None,
+            "note": "",
+            "disposition": "",
+        })
+    return {"seed": seed, "population": len(pairs), "size": len(items_out), "instructions": AUDIT_INSTRUCTIONS, "items": items_out}
+
+
+AUDIT_INSTRUCTIONS = (
+    "For each item judge two relations independently. excerpt_verdict: does the excerpt (read in its snapshot context) "
+    "support the claim as stated? One of supports, partial, contradicts, unrelated; null when there is no excerpt. "
+    "prose_verdict: do the report passages say what the claim says, no stronger and no weaker? One of faithful, "
+    "overstates, understates, contradicts; not-anchored when no passage is marked. Explain every non-supporting or "
+    "non-faithful verdict in note. The author later fills disposition with the repair."
+)
+
+
+def record_audit(directory: Path, verdict_file: Path, route: str) -> dict[str, Any]:
+    if not text(route):
+        raise ValueError("--route must name the model, person or process that judged the sample")
+    packet = load_json(verdict_file)
+    items = packet.get("items") if isinstance(packet, dict) else None
+    if not isinstance(items, list) or not items:
+        raise ValueError("verdict file must contain a non-empty items list")
+    kept_keys = ("claim_id", "evidence_id", "excerpt_verdict", "prose_verdict", "note", "disposition")
+    recorded = [{key: item.get(key) for key in kept_keys} for item in items if isinstance(item, dict)]
+    for item in recorded:
+        if item["excerpt_verdict"] is None and item["prose_verdict"] is None:
+            raise ValueError(f"item for claim {item['claim_id']} has no verdict; every sampled item must be judged")
+    path = directory / "assessment.json"
+    assessment = load_json(path)
+    review = assessment.setdefault("review", {})
+    audit = {"route": route, "audited_at": utc_now(), "seed": packet.get("seed"), "population": packet.get("population"), "items": recorded}
+    review["entailment_audit"] = audit
+    write_json(path, assessment)
+    judged_excerpts = [i for i in recorded if i["excerpt_verdict"] is not None]
+    judged_prose = [i for i in recorded if i["prose_verdict"] not in (None, "not-anchored")]
+    return {
+        "items": len(recorded),
+        "excerpt_problems": sum(1 for i in judged_excerpts if i["excerpt_verdict"] != "supports"),
+        "excerpts_judged": len(judged_excerpts),
+        "prose_problems": sum(1 for i in judged_prose if i["prose_verdict"] != "faithful"),
+        "prose_judged": len(judged_prose),
+        "undispositioned": sum(1 for i in recorded if ((i["excerpt_verdict"] not in (None, "supports")) or (i["prose_verdict"] not in (None, "faithful", "not-anchored"))) and not text(i.get("disposition"))),
+    }
+
+
+def due_rows(as_of: str) -> list[dict[str, Any]]:
+    """Open hypotheses whose resolve_by date has arrived."""
+    if parse_temporal(as_of) is None:
+        raise ValueError("--as-of must be ISO-8601")
+    rows = []
+    for assessment_path in sorted(REPORTS.glob("[0-9][0-9][0-9][0-9]/[0-9][0-9]/*/assessment.json")):
+        try:
+            assessment = load_json(assessment_path)
+        except ValueError:
+            continue
+        for hypothesis in assessment.get("hypotheses", []) or []:
+            if not isinstance(hypothesis, dict):
+                continue
+            resolution = hypothesis.get("resolution") if isinstance(hypothesis.get("resolution"), dict) else {}
+            resolve_by = hypothesis.get("resolve_by")
+            if resolution.get("status") == "open" and parse_temporal(resolve_by) is not None and not_after(resolve_by, as_of):
+                rows.append({"report": str(assessment_path.parent.relative_to(ROOT)), "hypothesis": hypothesis.get("id"), "resolve_by": resolve_by, "statement": hypothesis.get("statement"), "central": (hypothesis.get("probability") or {}).get("central")})
+    return rows
+
+
+def reader_text(directory: Path) -> str:
+    """Report Markdown with claim anchors removed, for presentation builds."""
+    return strip_anchors((directory / "report.md").read_text(encoding="utf-8"))
 
 
 def init_report(args: argparse.Namespace) -> Path:
@@ -1113,6 +1753,7 @@ def init_report(args: argparse.Namespace) -> Path:
         "claims": [],
         "evidence": [],
         "hypotheses": [],
+        "searches": [],
         "coverage_gaps": [],
         "review": {
             "deterministic_checks": [],
@@ -1317,6 +1958,8 @@ def calibration_text(rows: list[dict[str, Any]]) -> str:
         inside = sum(1 for r in scored if float(r["low"]) <= r["outcome_value"] <= float(r["high"]))
         lines.append(f"- Brier score (central estimates): {brier:.3f}")
         lines.append(f"- Outcomes inside stated interval: {inside}/{len(scored)}")
+        if len(scored) < 20:
+            lines.append(f"- Caution: {len(scored)} scored outcome(s) is too few to distinguish skill from luck; treat these numbers as a ledger, not a calibration estimate.")
         lines.extend(["", "| Report | Hypothesis | Central | Outcome | Squared error |", "|---|---|---|---|---|"])
         for r in scored:
             lines.append(f"| {r['report']} | {r['hypothesis']} | {float(r['central']):.2f} | {r['outcome_value']} | {(float(r['central']) - r['outcome_value']) ** 2:.3f} |")
@@ -1484,6 +2127,7 @@ def main() -> int:
     validate = sub.add_parser("validate", help="validate one report directory")
     validate.add_argument("directory", type=Path)
     validate.add_argument("--strict", action="store_true", help="treat advisory warnings as errors")
+    validate.add_argument("--verify-snapshots", action="store_true", help="fail when a snapshot bound to a quotation is not present locally for re-verification")
     render = sub.add_parser("render-sources", help="rewrite report Sources from the local ledger")
     render.add_argument("directory", type=Path)
     add_source_parser = sub.add_parser("add-source", help="register a source in a report-local ledger")
@@ -1495,15 +2139,56 @@ def main() -> int:
     add_quote_parser.add_argument("directory", type=Path)
     add_quote_parser.add_argument("source_id", type=int)
     add_quote_parser.add_argument("--text", required=True)
-    add_quote_parser.add_argument("--from-file", required=True, type=Path)
+    quote_origin = add_quote_parser.add_mutually_exclusive_group(required=True)
+    quote_origin.add_argument("--snapshot", help="snapshot digest or unique prefix recorded on the source, or 'latest'")
+    quote_origin.add_argument("--from-file", type=Path, help="analyst-supplied text file (weaker provenance than --snapshot)")
     add_evidence_parser = sub.add_parser("add-evidence", help="verify a quotation and attach it to claims in one step")
     add_evidence_parser.add_argument("directory", type=Path)
     add_evidence_parser.add_argument("source_id", type=int)
     add_evidence_parser.add_argument("--text", required=True)
-    add_evidence_parser.add_argument("--from-file", required=True, type=Path)
+    evidence_origin = add_evidence_parser.add_mutually_exclusive_group(required=True)
+    evidence_origin.add_argument("--snapshot", help="snapshot digest or unique prefix recorded on the source, or 'latest'")
+    evidence_origin.add_argument("--from-file", type=Path, help="analyst-supplied text file (weaker provenance than --snapshot)")
     add_evidence_parser.add_argument("--claim", action="append", required=True, dest="claims", metavar="CLAIM_ID")
     add_evidence_parser.add_argument("--location", required=True)
     add_evidence_parser.add_argument("--captured-at", required=True)
+    fetch_parser = sub.add_parser("fetch", help="retrieve a URL, store its extracted text as a snapshot, and register the source")
+    fetch_parser.add_argument("directory", type=Path)
+    fetch_parser.add_argument("url")
+    fetch_parser.add_argument("--title", help="required when the URL is new to the ledger")
+    fetch_parser.add_argument("--store", choices=("vault", "report"), default="vault", help="vault: private Git-ignored store (default); report: commit under evidence/snapshots (redistributable text only)")
+    capture_parser = sub.add_parser("capture", help="record source text obtained another way (browser render, PDF extraction, archive copy)")
+    capture_parser.add_argument("directory", type=Path)
+    capture_parser.add_argument("url")
+    capture_parser.add_argument("--from-file", required=True, type=Path)
+    capture_parser.add_argument("--title")
+    capture_parser.add_argument("--retrieved-at")
+    capture_parser.add_argument("--note", help="how the text was obtained, e.g. 'browser render after consent wall'")
+    capture_parser.add_argument("--store", choices=("vault", "report"), default="vault")
+    search_parser = sub.add_parser("log-search", help="record a search in the report's search log")
+    search_parser.add_argument("directory", type=Path)
+    search_parser.add_argument("--query", required=True)
+    search_parser.add_argument("--engine", required=True, help="search tool, database or catalogue used")
+    search_parser.add_argument("--purpose", required=True, choices=sorted(SEARCH_PURPOSES))
+    search_parser.add_argument("--question", type=int, help="1-based report question this search serves")
+    search_parser.add_argument("--source", type=int, action="append", default=[], dest="sources", help="source id registered from this search (repeatable)")
+    search_parser.add_argument("--considered", type=int, help="number of results actually inspected")
+    search_parser.add_argument("--note")
+    search_parser.add_argument("--at", dest="run_at")
+    sample_parser = sub.add_parser("audit-sample", help="write a reproducible claim/evidence/prose sample for semantic review")
+    sample_parser.add_argument("directory", type=Path)
+    sample_parser.add_argument("--size", type=int, default=12)
+    sample_parser.add_argument("--seed", type=int)
+    sample_parser.add_argument("--out", type=Path, required=True)
+    record_parser = sub.add_parser("record-audit", help="store reviewer verdicts from a completed audit sample")
+    record_parser.add_argument("directory", type=Path)
+    record_parser.add_argument("--from-file", required=True, type=Path)
+    record_parser.add_argument("--route", required=True)
+    due_parser = sub.add_parser("due", help="list open hypotheses whose resolve_by date has arrived")
+    due_parser.add_argument("--as-of", default=None)
+    reader_parser = sub.add_parser("reader", help="print report.md without claim anchors, for presentation builds")
+    reader_parser.add_argument("directory", type=Path)
+    reader_parser.add_argument("--out", type=Path)
     supersede = sub.add_parser("supersede", help="create a dated successor report and link lineage both ways")
     supersede.add_argument("predecessor", type=Path)
     supersede.add_argument("--slug", required=True)
@@ -1549,15 +2234,18 @@ def main() -> int:
             return emit(args, True, {"directory": str(directory)}, str(directory))
         if args.command == "validate":
             warnings: list[str] = []
-            errors = validate_report(args.directory, warnings)
+            notes: list[str] = []
+            errors = validate_report(args.directory, warnings, verify_snapshots=args.verify_snapshots, notes=notes)
             if args.strict:
                 errors = errors + [f"strict: {warning}" for warning in warnings]
                 warnings = []
             if not args.json:
                 for warning in warnings:
                     print(f"WARNING: {warning}", file=sys.stderr)
+                for note in notes:
+                    print(f"NOTE: {note}", file=sys.stderr)
             suffix = f" ({len(warnings)} warning(s))" if warnings else ""
-            return emit(args, not errors, {"directory": str(args.directory), "warnings": warnings}, f"OK: {args.directory}{suffix}", errors=errors)
+            return emit(args, not errors, {"directory": str(args.directory), "warnings": warnings, "notes": notes}, f"OK: {args.directory}{suffix}", errors=errors)
         if args.command == "render-sources":
             render_sources(args.directory)
             return emit(args, True, {"directory": str(args.directory)}, f"rewrote {args.directory / 'report.md'}")
@@ -1565,11 +2253,44 @@ def main() -> int:
             source_id = add_source(args.directory, args.url, args.title, args.accessed)
             return emit(args, True, {"source_id": source_id}, str(source_id))
         if args.command == "add-quote":
-            add_quote(args.directory, args.source_id, args.text, args.from_file)
+            add_quote(args.directory, args.source_id, args.text, args.from_file, args.snapshot)
             return emit(args, True, {"source_id": args.source_id}, f"attached quote to source {args.source_id}")
         if args.command == "add-evidence":
-            evidence_id = add_evidence(args.directory, args.source_id, args.text, args.from_file, args.claims, args.location, args.captured_at)
+            evidence_id = add_evidence(args.directory, args.source_id, args.text, args.from_file, args.claims, args.location, args.captured_at, args.snapshot)
             return emit(args, True, {"evidence_id": evidence_id, "source_id": args.source_id}, evidence_id)
+        if args.command in {"fetch", "capture"}:
+            if args.command == "fetch":
+                source_id, digest = fetch_source(args.directory, args.url, args.title, args.store)
+            else:
+                source_id, digest = capture_source(args.directory, args.url, args.title, args.from_file, args.retrieved_at, args.note, args.store)
+            return emit(args, True, {"source_id": source_id, "snapshot": digest}, f"source {source_id} snapshot {digest}")
+        if args.command == "log-search":
+            search_id = log_search(args.directory, args.query, args.engine, args.purpose, args.question, args.sources, args.considered, args.note, args.run_at)
+            return emit(args, True, {"search_id": search_id}, search_id)
+        if args.command == "audit-sample":
+            packet = audit_sample(args.directory, args.size, args.seed)
+            write_text_atomic(args.out, json.dumps(packet, indent=2, ensure_ascii=False) + "\n")
+            return emit(args, True, {"path": str(args.out), "seed": packet["seed"], "size": packet["size"], "population": packet["population"]}, f"wrote {packet['size']} of {packet['population']} items to {args.out} (seed {packet['seed']})")
+        if args.command == "record-audit":
+            summary = record_audit(args.directory, args.from_file, args.route)
+            human = (
+                f"recorded {summary['items']} item(s): {summary['excerpt_problems']}/{summary['excerpts_judged']} excerpt problem(s), "
+                f"{summary['prose_problems']}/{summary['prose_judged']} prose problem(s), {summary['undispositioned']} awaiting disposition"
+            )
+            return emit(args, True, summary, human)
+        if args.command == "due":
+            rows = due_rows(args.as_of or utc_now())
+            human = "\n".join(f"{r['report']} {r['hypothesis']} (due {r['resolve_by']}, central {r['central']}): {r['statement']}" for r in rows) or "no hypotheses due"
+            return emit(args, True, {"hypotheses": rows}, human)
+        if args.command == "reader":
+            content = reader_text(args.directory)
+            if args.out:
+                write_text_atomic(args.out, content)
+                return emit(args, True, {"path": str(args.out)}, f"wrote {args.out}")
+            if args.json:
+                return emit(args, True, {"markdown": content}, "")
+            print(content, end="")
+            return 0
         if args.command == "supersede":
             successor = supersede_report(args.predecessor, args.slug, args.title, args.cutoff, args.mode, args.domain)
             return emit(args, True, {"successor": str(successor)}, str(successor))
@@ -1592,7 +2313,7 @@ def main() -> int:
                 elif not errors and path.read_text(encoding="utf-8") != expected:
                     errors = ["reports/index.md is stale; run reportctl.py index"]
                 return emit(args, not errors, {"path": str(path)}, "OK: reports/index.md", errors=errors)
-            path.write_text(expected, encoding="utf-8")
+            write_text_atomic(path, expected)
             return emit(args, True, {"path": str(path)}, f"rewrote {path}")
         if args.command == "scan-sensitive":
             errors = sensitive_content_errors()

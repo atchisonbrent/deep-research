@@ -52,7 +52,8 @@
         "transparency": "medium",
         "notes": "The record is direct but self-interested and not independently corroborated."
       },
-      "independence_rationale": "The claim is based on the participant’s direct public record and no other evidence path."
+      "independence_rationale": "The claim is based on the participant\u2019s direct public record and no other evidence path.",
+      "disposition": "cited"
     }
   ],
   "claims": [
@@ -74,7 +75,10 @@
       "falsifiers": [
         "Authenticated evidence that the record was fabricated."
       ],
-      "last_checked": "2026-08-31T10:49:00Z"
+      "last_checked": "2026-08-31T10:49:00Z",
+      "counter_search_ids": [
+        "S2"
+      ]
     }
   ],
   "evidence": [
@@ -112,7 +116,12 @@
         "status": "open",
         "outcome": null,
         "resolved_at": null
-      }
+      },
+      "counter_search_ids": [
+        "S2"
+      ],
+      "resolve_by": null,
+      "unresolvable_reason": "The event is past; no later observation will score this beyond corroboration already sought."
     }
   ],
   "coverage_gaps": [
@@ -124,5 +133,31 @@
     ],
     "independent_review": "not-run",
     "notes": "Fixture report; independent review is not required."
-  }
+  },
+  "searches": [
+    {
+      "id": "S1",
+      "question": 1,
+      "purpose": "primary",
+      "engine": "example-search",
+      "query": "event organizer official record",
+      "run_at": "2026-08-31T09:30:00Z",
+      "results_considered": 6,
+      "source_ids": [
+        1
+      ],
+      "notes": "Located the organizer's record."
+    },
+    {
+      "id": "S2",
+      "question": 1,
+      "purpose": "counter",
+      "engine": "example-search",
+      "query": "event cancelled OR postponed OR did not occur",
+      "run_at": "2026-08-31T09:45:00Z",
+      "results_considered": 8,
+      "source_ids": [],
+      "notes": "No report of cancellation or postponement found."
+    }
+  ]
 }

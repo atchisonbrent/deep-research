@@ -9,7 +9,16 @@
       "quotes": [
         {
           "text": "The event occurred.",
-          "added": "2026-08-31"
+          "added": "2026-08-31",
+          "snapshot": "b3348a137e8871c25943765d68330a2b896476269c4b48d4c4b8435db17823b7",
+          "offset": 22
+        }
+      ],
+      "snapshots": [
+        {
+          "sha256": "b3348a137e8871c25943765d68330a2b896476269c4b48d4c4b8435db17823b7",
+          "method": "capture",
+          "retrieved_at": "2026-08-31T10:00:00Z"
         }
       ]
     }

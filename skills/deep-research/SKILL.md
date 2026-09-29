@@ -10,7 +10,12 @@ metadata:
 
 # Deep Research
 
-Produce durable, decision-grade research across technology, markets, companies, policy, law, science, security, history, product categories, forecasts, and modern events. This skill owns question framing, mode routing, source and author evaluation, claim decomposition, competing hypotheses or criteria matrices, calibrated probability ranges, and report publication. The framework repository owns methodology, schema, source IDs, quote verification, validator, tests, and CI. The configured report vault owns actual reports and should normally remain private unless the user explicitly chooses public publication.
+Produce durable, decision-grade research across technology, markets, companies, policy, law, science, security, history, product categories, forecasts, and modern events. This skill owns the procedure: framing, mode routing, mapping the evidence landscape, retrieval, source and claim assessment, synthesis, and review. The framework repository owns the methodology, schema, and `reportctl.py`, which captures source text, verifies quotations, and validates the report. The configured report vault owns actual reports and should normally remain private unless the user explicitly chooses public publication.
+
+Two failures matter most, and most of this procedure exists to prevent them:
+
+1. **Shallow retrieval presented as a finished answer.** A report can be accurate about everything it read and still be wrong because it did not read the studies, data series, or records a specialist would consider decisive. Map the evidence landscape first, search deliberately against your own conclusion, and do not declare a question unresolved until the evidence that could resolve it has actually been sought.
+2. **Correct-looking artifacts that do not say what the sources say.** Citations that resolve and quotations that match prove correspondence, not support. Bind quotations to captured source text, anchor prose to claims, and have someone else audit a sample for meaning.
 
 ## When to Use
 
@@ -28,9 +33,9 @@ Do not use for a quick uncontested lookup, a conventional academic-paper writing
 
 ## Prerequisites
 
-When the current agent exposes related skills, load `grounded-citations` for citation semantics before retrieval, `arxiv` for scientific literature, `competitor-news-monitor` when converting research into a recurring company watch, and `product-buying-research` for live purchase decisions. Their absence is not fatal: apply the equivalent evidence rules here and record any lost specialist coverage. This is a cross-agent workflow over a self-contained repository contract.
+When the current agent exposes related skills, load `grounded-citations` for citation semantics, `arxiv` for scientific literature, `competitor-news-monitor` for a recurring company watch, and `product-buying-research` for live purchase decisions. Their absence is not fatal: apply the equivalent rules here and record any lost specialist coverage.
 
-Resolve the report vault in this order: injected `deep_research.repository` configuration when the agent supports it; `DEEP_RESEARCH_REPOSITORY`; the current repository when it contains `tools/reportctl.py`; then `~/workspace/research-reports`. Expand `~`, and set:
+Resolve the report vault in this order: injected `deep_research.repository` configuration; `DEEP_RESEARCH_REPOSITORY`; the current repository when it contains `tools/reportctl.py`; then `~/workspace/research-reports`. Expand `~`, and set:
 
 ```bash
 REPO="<resolved deep_research.repository>"
@@ -43,271 +48,195 @@ else
   exit 1
 fi
 TOOL="$FRAMEWORK/tools/reportctl.py"
-test -f "$TOOL"
 python3 "$TOOL" add-evidence --help >/dev/null || { echo "pinned framework predates add-evidence; update the vault's framework pin" >&2; exit 1; }
 python3 "$TOOL" validate --help | grep -q -- --strict || { echo "pinned framework predates validate --strict" >&2; exit 1; }
+python3 "$TOOL" fetch --help >/dev/null || { echo "pinned framework predates snapshot capture; update the vault's framework pin" >&2; exit 1; }
 ```
 
-Require `$FRAMEWORK/METHODOLOGY.md`, `$FRAMEWORK/SCHEMA.md`, `$FRAMEWORK/docs/QUICKSTART.md`, and `$FRAMEWORK/tools/reportctl.py`. The required CLI contract is public and standard-library-only: global `--root <vault>` (and optional `--json`) before the subcommand; `init`; `add-source`; `add-quote --from-file`; `add-evidence`; `render-sources`; `validate [--strict]`; `index`; `scan-sensitive`; `supersede`; `resolve`; and `calibration`. If the framework or CLI contract is unavailable, stop before producing a supposedly durable report; do not hand-build substitute IDs or a Sources block.
+Require `$FRAMEWORK/METHODOLOGY.md`, `$FRAMEWORK/SCHEMA.md`, and `$FRAMEWORK/tools/reportctl.py`. The CLI takes a global `--root <vault>` (and optional `--json`) before the subcommand. If the framework is unavailable, stop before producing a supposedly durable report; do not hand-build substitute IDs, quotations, or a Sources block. The pinned schema and validator own the JSON shape; `$FRAMEWORK/schema/*.schema.json` is its machine-readable form. Never invent field names.
 
-Use the repository's current methodology and schema as authoritative. This skill defines the procedure; mode-specific evidence hierarchies live in `references/modes/`; report-specific truth belongs in the report repository.
-
-Completion: the repository, framework, and report-local citation ledger paths are known before source collection.
+Completion: the repository, framework, report directory, and snapshot store are known before source collection.
 
 ## Quick Reference
 
 ```bash
-REPO="<resolved deep_research.repository>"
+R="python3 $TOOL --root $REPO"
 REPORT="$REPO/reports/YYYY/MM/<slug>"
-TOOL="$REPO/framework/tools/reportctl.py"
-if ! test -f "$TOOL"; then TOOL="$REPO/tools/reportctl.py"; fi
 
-python3 "$TOOL" --root "$REPO" init --slug <slug> --title "<title>" --mode <research-mode> --domain <domain> --cutoff <ISO-8601-UTC>
-python3 "$TOOL" --root "$REPO" add-source "$REPORT" <url> --title "<title>" --accessed <ISO-date>
-python3 "$TOOL" --root "$REPO" add-evidence "$REPORT" <id> --text "<verbatim>" --from-file <fetched-text-file> --claim <CLAIM-ID> --location "<where>" --captured-at <ISO-8601-UTC>
-python3 "$TOOL" --root "$REPO" render-sources "$REPORT"
-python3 "$TOOL" --root "$REPO" validate "$REPORT"
-python3 "$TOOL" --root "$REPO" validate --strict "$REPORT"
-python3 "$TOOL" --root "$REPO" index
-python3 "$TOOL" --root "$REPO" index --check
-python3 "$TOOL" --root "$REPO" scan-sensitive
+$R init --slug <slug> --title "<title>" --mode <mode> --domain <domain> --cutoff <ISO-8601-UTC>
+$R log-search "$REPORT" --question 1 --purpose map --engine "<tool>" --query "<query>" --considered <n>
+$R fetch "$REPORT" <url> --title "<title>"                     # capture text, register source
+$R capture "$REPORT" <url> --from-file <text> --note "<how>"    # browser/PDF/archive text
+$R add-evidence "$REPORT" <id> --snapshot latest --text "<verbatim>" --claim <C-ID> --location "<where>" --captured-at <ISO>
+$R render-sources "$REPORT"
+$R validate --strict --verify-snapshots "$REPORT"
+$R audit-sample "$REPORT" --size 12 --out audit.json   # give to an independent judge
+$R record-audit "$REPORT" --from-file audit.json --route "<judge>"
+$R reader "$REPORT" --out reader.md                     # anchor-free text for PDF/HTML
+$R index && $R index --check && $R scan-sensitive
+$R due                                                  # hypotheses ready to score
 ```
 
-Invoke commands through the agent's shell tool. Use its web-search capability for discovery and its fetch/extract capability for actual page evidence; save fetched text to a file so `add-evidence` can verify excerpts against it. Use a browser only when extraction fails or dynamic content is load-bearing; when a page is blocked or paywalled, try an archive snapshot and record the archive URL as the retrieved source. Tool names differ across Hermes, Claude Code, Codex, and OpenCode; the evidence standard does not. If the active agent has no web retrieval, stop with an explicit coverage gap rather than inventing current evidence.
+Use the agent's web search for discovery and `fetch` for evidence. When `fetch` is blocked (403, consent wall, script-rendered page) or the source is a PDF without `pdftotext`, read it with a browser or extractor, save the text, and `capture` it with a note saying how. Try an archive snapshot when a page is gone and record the archive URL. If the agent has no web retrieval, stop with an explicit coverage gap rather than inventing current evidence.
+
+`fetch` stores text in the private, Git-ignored vault store (`<vault>/.snapshots/` or `$DEEP_RESEARCH_SNAPSHOTS`) by default. Use `--store report` only for text that may be redistributed—US federal government works, openly licensed papers, your own measurements—so it is committed beside the report.
 
 ## Procedure
 
 ### 1. Orient, choose a mode, and freeze the research contract
 
-Read `$FRAMEWORK/METHODOLOGY.md`, `$FRAMEWORK/SCHEMA.md`, `reports/index.md`, `references/modes/README.md`, and any prior report on the subject. Use the shell to obtain the current date/time; do not infer it. Pick one primary mode from the table in `references/modes/README.md` and read that mode's file in full; it defines the evidence hierarchy, decomposition pattern, gates, output sections, and completion criteria for the rest of this procedure. Define:
+Read `$FRAMEWORK/METHODOLOGY.md`, `$FRAMEWORK/SCHEMA.md`, `reports/index.md`, `references/modes/README.md`, and any prior report on the subject. Get the current date/time from the shell. Pick one primary mode from `references/modes/README.md` and read that mode's file in full; it fixes the evidence hierarchy, decomposition pattern, gates, output sections, and completion criteria. Define:
 
-- exact decision questions and intended use;
-- research mode and domain;
-- comparison class, audience, geography, jurisdiction, and temporal scope where relevant;
-- UTC cutoff;
-- excluded adjacent topics, products, markets, companies, actors, or periods;
-- what would materially change the verdict;
-- which inputs are volatile enough to require refresh at decision time;
-- whether this is a new report or a dated update.
+- exact decision questions and intended use; mark the one or two **decisive** questions whose answers would most change the verdict;
+- mode, domain, comparison class, geography, jurisdiction, and temporal scope;
+- UTC cutoff, exclusions, volatile inputs, and whether this is a new report or a dated update. The cutoff closes the evidence window: `fetch` and `log-search` refuse later timestamps. Use a date-only cutoff for single-day work; for longer research, advance a draft's cutoff as retrieval continues and freeze it before synthesis.
 
-Create the report skeleton with `reportctl.py --root "$REPO" init`, including `--mode` and `--domain`; it scaffolds the mode's output sections. Never silently revise an old report's cutoff or forecast to incorporate later knowledge.
+**Prefer depth to breadth.** More than about five decision questions in one report usually means each is answered from a handful of sources. Split into linked reports, or state which questions receive full treatment and which are context. Spend effort on retrieval and reading before presentation formats.
 
-Completion: `assessment.json` contains real questions, mode, domain, scope, and volatility boundaries; the report directory exists; the mode file has been read.
+Create the skeleton with `init --mode --domain`. Never silently revise an old report's cutoff or forecast to incorporate later knowledge.
+
+Completion: `assessment.json` has real questions, mode, domain, scope and volatility boundaries; the mode file has been read.
 
 ### 2. Decompose conclusions before searching
 
-Turn slogans and broad narratives into atomic candidate claims using the mode's decomposition pattern. Separate:
+Turn slogans into atomic candidate claims using the mode's decomposition pattern. Separate observed facts, attributed statements, inference, forecasts, and unknowns. For causal, intentional, strategic, or forecast questions, write the leading hypothesis, the strongest credible alternative, a mixed explanation where appropriate, and the insufficient-evidence possibility before deciding which is true. For descriptive landscapes and comparisons, use the mode's criteria matrix instead of manufacturing hypotheses. Apply mode gates as gates, not decoration.
 
-- observed events, specifications, measurements, filings, releases, or market facts;
-- attributed statements;
-- inferred capability, quality, motive, trajectory, or competitive position;
-- outcome or decision relevance;
-- future forecast;
-- unknowns.
+Completion: initial claim IDs plus hypotheses or a criteria matrix exist; unresolved matrix cells have named `coverage_gaps` entries.
 
-For causal, intentional, strategic, or forecast questions, write the leading hypothesis, strongest credible alternative, mixed explanation where appropriate, and insufficient-evidence possibility before deciding which is true. For descriptive landscapes and comparisons, use the mode's criteria matrix or claim table instead; do not manufacture dramatic hypotheses because the schema permits them. Apply the mode gates from the mode file (eligibility gate and symmetric matrix for `comparative-analysis`, release ladder for `release-forecast`, identity resolution for `entity-background`, and so on) as gates, not decoration.
+### 3. Map the evidence landscape before collecting
 
-Completion: initial claim IDs plus either hypotheses or a criteria matrix exist before synthesis; matrices live in `report.md`, and every unresolved cell has a named `coverage_gaps` entry.
+Before gathering support for anything, answer for each decision question: **what evidence would a specialist expect a serious answer to engage?** List it:
 
-### 3. Build a deliberately diverse source map
+- the canonical studies, reviews, and meta-analyses (search scholarly indexes such as Google Scholar, SSRN, NBER, PubMed, or arXiv—not only the open web);
+- the official data series, audits, filings, court records, budgets, and inspector-general or auditor reports that measure the thing directly;
+- the most recent authoritative work, and whether it revises older findings;
+- the best-informed advocates on each side and the evidence they rely on.
 
-Retrieve in parallel across the mode's evidence hierarchy, always including:
+Log these as `map` searches with `log-search`. The map is a checklist: every listed item is later read, found unavailable (gap with its searches), or judged irrelevant with a reason. For empirical questions, follow citation trails backward from the strongest recent work and forward to newer work that cites it. When you catch yourself citing a summary—a CRS report, a literature review, a news account of a study—retrieve the underlying primary work for load-bearing uses.
 
-1. mode-appropriate primary records;
-2. independent reporting or analysis with its own evidence path;
-3. domain-specialist analysis with inspectable methods;
-4. stakeholder statements kept in attribution;
-5. credible contradictory evidence or alternative interpretation.
+Completion: each decision question has a logged evidence map that names concrete studies, datasets, or records, not just search terms.
 
-Register each URL with `add-source` immediately after retrieval and save the fetched text to a file. Never hand-number IDs or delete an uncited but genuinely consulted source merely to make the bibliography look tidy; the ledger and assessment may retain consulted sources while `render-sources` publishes only cited IDs. Then read `$FRAMEWORK/SCHEMA.md` and write a complete initial `assessment.json` (or patch a targeted update); the ledger owns citation identity and verified quotes, while `assessment.json` owns access, independence, source/author assessment, claims, evidence, hypotheses, gaps, and review state. Record `access: snippet` when only a search description was read; a snippet cannot support a load-bearing claim. Never invent field names—the pinned schema and validator own the shape.
+### 4. Retrieve with provenance
 
-A source failure is a coverage gap, not negative evidence. Retry load-bearing failures through a different route before concluding.
+Retrieve in parallel across the map and the mode's evidence hierarchy: primary records; independent reporting or analysis with its own evidence path; domain-specialist analysis with inspectable methods; stakeholder statements kept in attribution; and credible contradictory evidence.
 
-Completion: each decision question has mode-appropriate primary evidence, an independent analysis or reporting path, and one sought contradiction or alternative interpretation—or a documented gap explaining why not.
+`fetch` (or `capture`) every source you actually read; it stores the extracted text under its SHA-256 and registers the source. Log each substantive query with `log-search`, including how many results you inspected and which sources it yielded. Search results are discovery, not evidence: extract the page or mark `access: snippet`, and a snippet cannot support a load-bearing claim. Never hand-number IDs. Keep consulted sources in the ledger; `render-sources` publishes only cited IDs.
 
-### 4. Map independence before counting corroboration
+Write each source's assessment into `assessment.json` (access, type, directness, independence, incentives, limitations, publisher history, transparency). A source failure is a coverage gap, not negative evidence; retry load-bearing failures through a different route before concluding.
 
-Assign every source an `independence_group` based on its underlying evidence path. Treat these as one group unless proven distinct:
+Completion: every read source has a snapshot or a recorded reason it could not be captured; the search log shows how sources were found.
 
-- syndicated copies of one wire report;
-- outlets repeating one press release, official briefing, launch leak, analyst note, benchmark result, roadmap, or supply-chain source;
-- stories drawing from the same anonymous official, witness, stringer, leak, or social post;
-- analyses using the same dataset, cohort, benchmark harness, market feed, customer sample, paper corpus, or imagery.
+### 5. Seek disconfirmation deliberately
 
-Do not average source ratings or count domains as votes. Ten rewrites of one briefing remain one briefing.
+For every load-bearing inference, forecast, and hypothesis, run at least one search designed to prove it wrong—log it with `--purpose counter` and link it through `counter_search_ids`. Look for the strongest opposing case as its best-informed proponents make it, later corrections, replications and failed replications, and evidence that would make the preferred story fail. Record what you find in `contradicting_source_ids`, even when you ultimately weigh it less.
 
-Completion: every source has a defensible independence group with a rationale, and corroboration claims rely on genuinely separate groups.
+Balance means symmetric search effort, not symmetric conclusions. If favorable and unfavorable evidence for a position were sought with different intensity, the report is biased regardless of its tone.
 
-### 5. Assess the publication, author, and particular claim separately
+Completion: each load-bearing judgment shows either contradicting sources or a logged counter-search.
 
-For each source, write the schema-defined access, type, directness, incentives, limitations, transparency, and publisher history into `assessment.json`. For authors:
+### 6. Map independence before counting corroboration
 
-- capture only visible bylines;
-- research beat, role, relevant credentials, prior work, corrections, or documented failures when the author carries a load-bearing claim;
-- attach retrievable evidence for expertise or track record;
-- use `unknown` when this was not established;
-- never infer reliability from tone, nationality, politics, employer prestige, or one apparently correct article.
+Assign every source an `independence_group` and `independence_rationale` based on its underlying evidence path. Syndicated copies, outlets repeating one briefing or leak, and analyses sharing one dataset or benchmark harness are one group unless shown otherwise. Do not average source ratings or count domains as votes; ten rewrites of one briefing remain one briefing.
 
-A reputable outlet can publish a weak anonymous-source story. A partisan or interested source can provide authentic primary evidence. Source reputation affects prior confidence; the claim's evidence determines the update. Read `references/reliability-rubric.md` for the evaluation questions and prohibited shortcuts.
+### 7. Assess the publication, author, and particular claim separately
 
-Completion: every source and load-bearing author has an explicit assessment or visible `unknown`, never an invented biography or universal truth score.
+Source reputation sets a prior; the particular claim's evidence decides how far to move. A reputable outlet can publish a weak anonymous-source story; an interested party can supply authentic primary evidence. Read `references/reliability-rubric.md`. Author audits are optional—record `authors` only when a byline is visible and the author's expertise or record bears on a load-bearing claim; unknown author history is not low reliability, it is unknown. Never infer reliability from tone, nationality, politics, or employer prestige.
 
-### 6. Attach evidence to atomic claims
+For `attributed` claims, `status` says whether the source said it. Also set `underlying_status`: whether what it said is established. "The agency reports 3,715 victims assisted" can be confirmed as attribution while the underlying figure remains only probable because it is self-reported and unaudited.
 
-Populate the schema-defined `claims` and `evidence` in `assessment.json`; validate after each substantial batch so malformed references do not compound. For every load-bearing factual or attributed claim:
+### 8. Attach evidence to atomic claims
 
-- attach at least one short verbatim excerpt or public artifact coordinate;
-- list supporting and contradicting source IDs;
-- state rationale and falsifiers;
-- set `last_checked` to the real retrieval time, never later than the cutoff;
-- preserve scope, date, denominator, and attribution for numbers.
+For every load-bearing factual or attributed claim, attach at least one short verbatim excerpt through `add-evidence --snapshot`, which verifies the text against the stored snapshot and binds the quotation to that snapshot's hash. Use `kind: artifact` with a precise `location` for figures, table cells, dataset rows, and commits. `--from-file` remains for text you cannot capture as a snapshot, but it only proves the quotation appears in a file you supplied; `validate --strict` treats it as unfinished. Never paste a snippet, paraphrase into the quote field, or store full copyrighted articles in Git.
 
-Use `reportctl.py add-evidence --from-file` for every excerpt: it verifies case-sensitive wording with whitespace normalization against the fetched text, records the quote in the ledger, and appends the claim-facing evidence record in one step, so the validator can confirm the excerpt corresponds to a checked quotation. Keep the fetched text file under the report's `evidence/` directory; the command proves the quote is in that file, and Git history shows where the file came from. Use `add-quote --from-file` only when the evidence entry already exists. For non-text evidence—a figure, table cell, dataset row, or commit—write the evidence entry with `"kind": "artifact"` and a precise `location`. An `excerpt` without a verified ledger quote is a validation warning today and an error under `--strict`; never paste a snippet, paraphrase into the quote field, or store full copyrighted articles in Git.
+State rationale and falsifiers, list supporting and contradicting sources, preserve scope, date, denominator and attribution for numbers, and set `last_checked` to the real retrieval time. Validate after each substantial batch.
 
-Completion: the validator can trace every load-bearing factual claim to a source and verified excerpt or artifact coordinate.
+### 9. Pass the depth gate before synthesis
 
-### 7. Synthesize without laundering uncertainty
+Stop and check before writing the verdict:
 
-Write the verdict first, then distinguish:
+- Every evidence-map item is read, gapped with its searches, or dismissed with a reason.
+- Every retrieved source is cited or has a `disposition` and `disposition_note`. A strong, recent, directly relevant source that you retrieved but are not using is a warning sign: either use it or say precisely why not.
+- Every `missing-primary`, `access`, or `unresolved-contradiction` gap names the `search_ids` that tried to close it. Do not call the decisive question unresolved on the strength of searches you did not run.
+- Load-bearing claims resting only on secondary sources have been traced to the primary work, or carry a `missing-primary` gap naming them.
+- New searches are mostly returning evidence you already hold (saturation) for each decisive question. If not, keep going or narrow the report.
 
-- **Observed** — inspectable evidence;
-- **Reported** — attributed reporting;
-- **Assessed** — synthesis or inference;
-- **Forecast** — future expectation;
-- **Unknown** — unavailable or contradictory evidence.
+If the gate fails and time is exhausted, publish only with the unfinished items stated in the report's gaps section—never as a complete answer.
 
-Separate specifications from useful performance, demos from shipped availability, benchmark wins from workload fit, market narratives from measured economics, correlation from causation, announced plans from demonstrated execution, and enacted text from enforced rule. For motive questions, distinguish demonstrated decision chains from incentives and speculation.
+### 10. Synthesize without laundering uncertainty
 
-If the user changes a hard requirement, intended use, scope, or mandatory criterion after synthesis, discard the stale draft verdict and rerun the mode's gates. If no fresh evidence is needed, update the draft without changing its frozen cutoff. If evidence after the cutoff is required, create a dated successor with `reportctl.py supersede <predecessor> --slug … --title … --cutoff …`—even when the prior artifact is still draft—which links `lineage.supersedes` and `lineage.superseded_by` and retires the predecessor; never silently advance the old cutoff or hand-edit status to `superseded`.
+Write the verdict first, then distinguish **Observed**, **Reported**, **Assessed**, **Forecast**, and **Unknown**. Separate specifications from useful performance, demos from shipped availability, benchmark wins from workload fit, correlation from causation, announced plans from execution, and enacted text from enforced rule. Personal accounts are not prevalence estimates; conditional risk is not a forecast.
 
-Assign hypothesis probability ranges only after the claim ledger exists. Widen ranges when private intent, anonymous sourcing, dependence, access restrictions, or missing primary evidence dominate. Every hypothesis names at least one credible alternative and observable update triggers. When a prior report's hypothesis has resolved, record it with `reportctl.py resolve … --outcome … --at …` rather than editing the old range, and read `reportctl.py calibration` before assigning new ranges in the same domain.
+**Anchor claims in the prose.** Where a passage asserts a load-bearing claim, place its ID after the citation: `…fell 24%.[2]{C3}`. The validator checks that anchored passages cite only sources the anchored claims list, and that factual claims cite their own support; `reader` strips anchors for presentation. Anchors make prose auditable: a reviewer can see what the passage was supposed to say.
 
-Completion: a reader can identify what happened, what is inferred, what remains unknown, and what evidence would change the judgment.
+If requirements change after synthesis, discard the stale verdict and rerun the mode's gates. If evidence after the cutoff is required, create a successor with `reportctl.py supersede`, which links lineage both ways; never silently advance the old cutoff or hand-edit status to `superseded`.
 
-### 8. Cite at the narrowest honest scope
+Assign hypothesis probability ranges only after the claim ledger exists; widen them when intent is private, sourcing is anonymous or dependent, or primary evidence is missing. Give each open hypothesis a `resolve_by` date on which it can be scored, or an `unresolvable_reason`. Record outcomes with `resolve`; never edit an old range. Read `calibration` before assigning new ranges in the same domain, remembering that a few scored outcomes are a ledger, not a calibration estimate.
 
-When every sentence in a paragraph comes from the same source set, cite that set **once at the paragraph end**. Do not produce `[1]` after every sentence like a machine being paid by the bracket. When a paragraph mixes sources, evidence categories, or your own analysis, cite the relevant sentence or clause directly—or split the paragraph. Use no more than three source IDs in one citation group.
+Completion: a reader can identify what happened, what is inferred, what remains unknown, what evidence would change the judgment, and which claim each conclusion rests on.
 
-Never fix low citation coverage by copying all paragraph citations onto every sentence. That creates formally dense but semantically false attribution—the exact failure this workflow exists to prevent. Instead:
+### 11. Cite at the narrowest honest scope
 
-1. split compound or mixed-source claims;
-2. identify the precise source scope: clause, sentence, paragraph, or table row;
-3. cite once at the end of that honest scope;
-4. mark genuinely unsourced load-bearing judgment `[unverified]` and either research it or make the uncertainty explicit.
+When every sentence in a paragraph comes from the same source set, cite it **once at the paragraph end**. When a paragraph mixes sources, evidence categories, or your own analysis, cite the relevant sentence or clause directly—or split the paragraph. Use no more than three source IDs in one citation group. Never fix low coverage by copying paragraph citations onto every sentence; that creates dense but false attribution. Mark genuinely unsourced load-bearing judgment `[unverified]` and either research it or make the uncertainty explicit. Cite every data-bearing table row. Generate the Sources block with `render-sources`; never hand-type URLs.
 
-Generate the Sources block mechanically with `reportctl.py render-sources`; never hand-number or hand-retype URLs. Cite every data-bearing table row at the narrowest honest scope; the validator treats body rows as independent citation units and ignores header rows.
+### 12. Edit prose conservatively
 
-Completion: citation IDs are stable, scoped to the claims they support, semantically accurate, readable, and generated source URLs match the ledger.
+Perform a restrained prose pass after synthesis and before validation and review; the user need not request it. When available, load the `humanizer` skill in embedded mode. Remove empty introductions, inflated framing, redundant conclusions, and awkward phrasing only where readability improves. Preserve supported claims, attribution, negation, uncertainty, legal distinctions, dates, quantities, denominators, populations, comparison classes, quotations, citation scope, **claim anchors**, tables, and mode-required headings. Do not invent facts, citations, or first-person experience. Edit report-body prose only. Keep the pre-edit draft as a recoverable revision, compare the result against it and the claim ledger, and reject any edit that changes meaning. Record the pre-edit revision and the comparison in the review notes.
 
-### 9. Edit prose, then run both validation layers
+### 13. Validate
 
-Automatically perform a restrained prose pass after synthesis and before final
-validation and independent review; the user need not request it. When available,
-load the `humanizer` skill in embedded mode and return only finished prose, not
-its draft/critique ceremony. Without that optional skill, apply the same checks
-below; do not install tools or invoke a second model just for copyediting.
+Run, in order:
 
-Remove empty introductions, inflated framing, redundant conclusions and awkward
-phrasing only where readability improves. Preserve supported claims, attribution,
-negation, uncertainty, legal distinctions, dates, quantities, denominators,
-quotations and citation scope. Keep useful contrasts, lists and qualifications.
-Do not invent facts, citations or first-person experience for vividness. Leave
-code, commands, paths, identifiers, URLs, metadata and evidence records untouched.
-These research constraints override generic style rules and examples.
+1. `render-sources`;
+2. `validate`, then `validate --strict --verify-snapshots` where the snapshot store is present, and repair what they report—citation scope, anchors, provenance, depth, temporal and status/confidence coherence, placeholders;
+3. `index` and `index --check`;
+4. the framework unit tests, `scan-sensitive`, and `git diff --check`.
 
-Before editing, retain the synthesized draft as a recoverable Git revision or
-local review copy. Edit report-body prose only: assessment, ledger, evidence,
-quoted text, code and metadata are outside this pass. Preserve population,
-geography, jurisdiction, comparison class, period, metric definitions and their
-qualifiers. Keep tables and their citation-bearing rows, structural markup,
-mode-required headings and unresolved placeholders intact; empty introductions
-means dispensable boilerplate, not an unfinished required section.
+Warnings under `--strict` are unfinished work. Do not lower thresholds, remove required metadata, fabricate ranges, or bypass checks to make a draft pass. If a framework rule genuinely conflicts with a correct report, obtain framework-owner approval, change the framework with tests, publish it, and update the vault pin; preserve failed receipts and record the recovery separately.
 
-Compare the edited prose with the original and its claim/evidence ledger. Reject
-an edit that changes meaning or loses a supported claim; unchanged text is a valid
-result. Numeric and citation-token checks can catch some errors but cannot prove
-semantic equivalence. For example, keep the distinction between a reported count,
-a verified count and a demonstrated benefit, and between a null finding and proof
-of zero effect. This pass does not authorize retrospective changes to published
-reports. If later edits affect an approved evidence chain, use the existing
-re-review and cutoff/lineage rules.
+### 14. Audit meaning, then challenge the whole
 
-Run deterministic checks on the edited report in this order:
+**Semantic audit.** Run `audit-sample` and give the packet to a judge other than the author—a different model family or a person. The judge decides, per item, whether the excerpt in its snapshot context supports the claim and whether the anchored prose says what the claim says, no more and no less. Record verdicts with `record-audit`; every problem verdict needs a disposition describing the repair. Report the audited sample size with any problem rate; it is an estimate, not a guarantee.
 
-1. `reportctl.py --root "$REPO" render-sources` to generate the cited subset mechanically;
-2. `reportctl.py --root "$REPO" validate` and repair semantic citation scope, unknown IDs, source-block drift, evidence/claim mismatches, independence errors, temporal incoherence, status/confidence incoherence, leftover placeholders, and over-citation; then `validate --strict` and treat any unverified-excerpt warning as work to finish, not noise;
-3. regenerate and check `reports/index.md`;
-4. run the pinned framework unit tests, `scan-sensitive`, and `git diff --check`.
+**Independent review.** For high-impact, contested, investment-relevant, architecture-shaping, or forecast-heavy research, obtain two lenses from a reviewer other than the author, through whatever bounded, credential-free route the agent provides. Freeze the cutoff and exact revision first; never give the reviewer credentials or secret material, answer on its behalf, or steer its verdict.
 
-Do not lower thresholds merely to make a draft pass. If a paragraph mixes evidence paths, cite locally or split it; if it uses one source set, cite once at the end. If a sentence is analytical judgment rather than externally checkable fact, classify it correctly rather than decorating it with irrelevant citations.
+1. **Correspondence review** reads the report, assessment, ledger, snapshots or excerpts, and the prose-pass diff. It asks: do sources entail the prose; are sources double-counted; are ranges too narrow; are falsifiers missing; are categories conflated (benchmark/product, announcement/availability, correlation/causation, enacted/enforced, output/outcome)?
+2. **Coverage review** gets web access and one job: **find what the research missed**—decisive studies, data series, records, or counter-evidence absent from the ledger. A reviewer confined to the supplied files cannot see omissions. Record it in `review.coverage_review` with `web_access`, the `missing_evidence` it named, and your disposition.
 
-Required checks block completion. Run the whole consumer CI. Never fabricate
-ranges, remove required metadata or bypass checks. For schema conflicts, obtain
-framework-owner approval, test acceptance/rejection, review/publish the fix, update
-consumer pins and verify actual CI. Preserve failed receipts; record recovery separately.
-Qualitative claims retain rationale, limitations, falsifiers and evidence; forecasts
-and hypotheses retain numerical uncertainty. Pursue available outcome and
-counterevidence threads before declaring effects unknown. Personal accounts are
-not prevalence estimates; ancestry is not citizenship; conditional risk is not a forecast.
+Verify every finding locally. If remediation changes a load-bearing conclusion, range, independence, or evidence chain, rerun review. Record the exact revision, route, findings disposition, re-review decision, and remaining uncertainty in `assessment.json.review`.
 
-Completion: the pinned framework's report validator (including `--strict`), tests, index check, sensitive-content scan, and Git checks pass. Record in the existing review notes the pre-edit revision/copy and completed semantic comparison, or that the pass made no changes. Supply that reference and the prose diff with any consequential review; do not invent assessment schema fields.
+### 15. Publish as immutable-at-cutoff history
 
-### 10. Independently challenge consequential work
-
-For high-impact, high-cost, strongly contested, architecture-shaping, investment-relevant, or forecast-heavy research, obtain an independent review from a different model or a human reviewer through whatever bounded, credential-free route the current agent provides. Freeze the report cutoff and exact staged revision before review. The reviewer receives only the methodology, report, assessment, ledger, and prose-pass pre-edit reference/diff—never credentials or secret material. The author may clarify scope but must not answer on the reviewer's behalf or steer it toward a preferred verdict.
-
-Ask the reviewer to find:
-
-- missing alternatives or counter-evidence;
-- double-counted dependence;
-- unsupported source/author assumptions;
-- claims whose evidence does not entail the prose;
-- probability intervals that are too narrow;
-- absent falsifiers or update triggers;
-- category errors such as benchmark-to-product, announcement-to-availability, correlation-to-causation, enacted-to-enforced, or output-to-outcome conflation;
-- hidden contradictions.
-
-Verify every finding locally. If remediation changes a load-bearing conclusion, probability range, source independence, or evidence chain, rerun independent review.
-
-Completion: `assessment.json.review` records the exact frozen revision, actual route, review status, findings disposition, re-review decision, and remaining uncertainty.
-
-### 11. Publish as immutable-at-cutoff history
-
-Update the generated index, inspect the complete diff, and verify that the configured `origin` resolves to the intended repository and that the host reports the **expected visibility** before any push. Default to a private vault. Publishing report contents publicly requires explicit user intent after the sensitive-content scan. Commit, push, read back the exact remote revision, and require the repository's actual CI run to succeed before claiming publication. A later update links to the prior report and records what changed; it does not rewrite the old report into retrospective perfection.
-
-Completion: local and remote branches match, CI is green, and the report is browsable from `reports/index.md`.
+Inspect the complete diff, and verify that `origin` resolves to the intended repository with the **expected visibility** before any push. Default to a private vault; publishing report contents publicly requires explicit user intent after the sensitive-content scan. Build presentation formats from `reader` output. Commit, push, read back the exact remote revision, and require the repository's CI to succeed before claiming publication. Later knowledge goes in a linked successor; do not rewrite the old report into retrospective perfection. Back up the private snapshot store alongside the vault; without it, quotations can be checked only structurally.
 
 ## Pitfalls
 
-- **Outlet scorecards become astrology.** Evaluate a source's history, author, access, method, incentives, and this claim separately.
-- **Unknown author history is not low reliability.** It is unknown.
-- **A primary source is direct, not neutral.** A vendor benchmark proves what the vendor measured under chosen conditions; a roadmap proves an announced plan; a filing proves the disclosed metric under its definition.
-- **Anonymous officials are not independent because two outlets quote them.** Map the underlying source path.
+- **Declaring "unknown" before searching.** An unresolved decisive question with no logged searches is an unfinished report, not a finding.
+- **Found but unused.** Retrieving the best current study and citing an older summary instead is worse than never finding it.
+- **Summaries of summaries.** A review or government explainer is a map to the primary literature, not a substitute for it on load-bearing points.
+- **Outlet scorecards become astrology.** Evaluate a source's access, method, incentives, and this claim separately.
+- **A primary source is direct, not neutral.** A vendor benchmark proves what the vendor measured; a roadmap proves an announced plan; an agency's own statistics prove what it reports.
+- **Anonymous officials are not independent because two outlets quote them.**
 - **Search results are discovery, not evidence.** Extract the page or mark snippet access.
+- **Matching a quote is not supporting a claim.** The semantic audit exists because correspondence checks cannot read.
 - **Probability precision can hide ignorance.** Use ranges and explain what widens them.
-- **Citation coverage is not citation quality.** Never propagate a citation set across a paragraph to satisfy a counter.
+- **Citation coverage is not citation quality.**
 - **Claims have different half-lives.** Preserve cutoff, label volatile inputs, and create dated updates.
-- **A requirement change invalidates more than one sentence.** Rerun the mode's gates instead of appending a caveat; preserve cutoff and lineage rules.
-- **The mode file is the contract, not a suggestion.** Its gates decide eligibility, ranking weight, and what counts as primary; read it before retrieval, not after.
-- **Private Git is not a secret dump.** Store short excerpts and public artifacts, not credentials, leaked secrets, or full copyrighted articles.
+- **The mode file is the contract, not a suggestion.** Read it before retrieval.
+- **Private Git is not a secret dump.** Store short excerpts, hashes, and redistributable text—not credentials or full copyrighted articles.
 
 ## Verification
 
-- [ ] UTC cutoff, research mode, domain, questions, intended use, and volatile inputs are explicit
-- [ ] The mode's reference file was read and its gates were applied before ranking or synthesis
-- [ ] Prior report and methodology were read
-- [ ] Conclusions decomposed into atomic claims before synthesis
-- [ ] Mode-appropriate primary, independent, specialist, stakeholder, and contradictory paths sought
+- [ ] UTC cutoff, mode, domain, questions, decisive questions, intended use, and volatile inputs are explicit; scope favors depth
+- [ ] The mode file was read and its gates applied before ranking or synthesis
+- [ ] Each decision question has a logged evidence map naming concrete studies, data, or records
+- [ ] Every source actually read has a `fetch`/`capture` snapshot or a recorded reason it could not
+- [ ] Each load-bearing inference, forecast, and hypothesis shows contradicting sources or a logged counter-search
 - [ ] Independence groups prevent duplicate corroboration
-- [ ] Publisher and author judgments have evidence or say `unknown`
-- [ ] Every load-bearing factual claim has a short excerpt verified through `add-evidence`/`add-quote`, or a declared `artifact` coordinate; `validate --strict` passes
-- [ ] Observed, reported, assessed, forecast, and unknown are distinguishable
-- [ ] Forecast/causal hypotheses use ranges, alternatives, basis claims, falsifiers, and update triggers; descriptive research uses a criteria matrix or claim table
-- [ ] Every unresolved matrix cell or missing evidence path has a `coverage_gaps` entry
-- [ ] Material requirement changes triggered a full re-gate and a cutoff/lineage-correct draft or successor
-- [ ] Citations were registered at retrieval and attached once per honest clause, sentence, paragraph, or table-row scope
-- [ ] `render-sources` generated a Sources block matching the report's cited subset
-- [ ] Prose-pass semantic comparison and pre-edit reference recorded, or no-change recorded; required structure and evidence artifacts preserved
-- [ ] Pinned `reportctl.py validate`, index check, sensitive scan, framework unit tests, and `git diff --check` pass
-- [ ] Consequential reports received independent adversarial review
-- [ ] Commit, push, remote state, and CI were verified
+- [ ] Load-bearing excerpts are snapshot-bound through `add-evidence --snapshot` (or declared `artifact` coordinates)
+- [ ] Attributed claims distinguish attribution (`status`) from truth (`underlying_status`)
+- [ ] Depth gate passed: map items closed, uncited sources dispositioned, searched gaps link searches, secondary-only claims traced or gapped
+- [ ] Load-bearing claims are anchored in the prose; Observed/Reported/Assessed/Forecast/Unknown are distinguishable
+- [ ] Open hypotheses carry `resolve_by` or `unresolvable_reason`
+- [ ] `render-sources` produced the Sources block; `validate --strict --verify-snapshots`, index check, sensitive scan, framework tests, and `git diff --check` pass
+- [ ] Semantic audit recorded with dispositions; consequential reports received correspondence and web-enabled coverage review
+- [ ] Commit, push, remote state, CI, and snapshot-store backup were verified

@@ -1,0 +1,909 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/atchisonbrent/deep-research/schema/assessment.schema.json",
+  "title": "deep-research assessment.json",
+  "description": "Shape of assessment.json. Structural only: reportctl.py validate additionally enforces cross-references, temporal order, citation coverage, anchors and guardrails described in SCHEMA.md.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report",
+    "sources",
+    "claims",
+    "evidence",
+    "hypotheses",
+    "coverage_gaps",
+    "review"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "report": {
+      "type": "object",
+      "required": [
+        "slug",
+        "title",
+        "mode",
+        "domain",
+        "cutoff",
+        "created",
+        "updated",
+        "status",
+        "lineage",
+        "summary",
+        "questions"
+      ],
+      "properties": {
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "enum": [
+            "company-research",
+            "comparative-analysis",
+            "due-diligence",
+            "entity-background",
+            "event-assessment",
+            "general",
+            "historical-analysis",
+            "legal-regulatory",
+            "market-analysis",
+            "policy-analysis",
+            "product-landscape",
+            "release-forecast",
+            "scientific-synthesis",
+            "security-incident",
+            "state-of-practice",
+            "technology-landscape"
+          ]
+        },
+        "domain": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "cutoff": {
+          "type": "string",
+          "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+        },
+        "created": {
+          "type": "string",
+          "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+        },
+        "updated": {
+          "type": "string",
+          "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "reviewed",
+            "superseded"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "properties": {
+            "supersedes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "superseded_by": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "title",
+          "publisher",
+          "independence_group",
+          "independence_rationale",
+          "retrieved_at",
+          "source_type",
+          "access",
+          "directness",
+          "incentives",
+          "limitations",
+          "reliability"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "publisher": {
+            "type": "string",
+            "minLength": 1
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retrieved_at": {
+            "type": "string",
+            "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+          },
+          "source_type": {
+            "enum": [
+              "academic-paper",
+              "advocacy",
+              "analysis",
+              "benchmark",
+              "code-repository",
+              "company-communication",
+              "government",
+              "market-data",
+              "other",
+              "patent",
+              "primary-record",
+              "regulatory-filing",
+              "social",
+              "specialist",
+              "technical-documentation",
+              "wire-service"
+            ]
+          },
+          "access": {
+            "enum": [
+              "full",
+              "partial",
+              "snippet"
+            ]
+          },
+          "directness": {
+            "enum": [
+              "commentary",
+              "direct",
+              "near-direct",
+              "secondary"
+            ]
+          },
+          "independence_group": {
+            "type": "string",
+            "minLength": 1
+          },
+          "independence_rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "incentives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "authors": {
+            "type": "array",
+            "description": "Optional; omit when no byline audit was performed.",
+            "items": {
+              "type": "object",
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "expertise_evidence": {
+                  "type": "string"
+                },
+                "expertise_url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "track_record_evidence": {
+                  "type": "string"
+                },
+                "conflicts": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "reliability": {
+            "type": "object",
+            "required": [
+              "publisher_history",
+              "transparency",
+              "notes"
+            ],
+            "properties": {
+              "publisher_history": {
+                "enum": [
+                  "high",
+                  "low",
+                  "medium",
+                  "unknown"
+                ]
+              },
+              "transparency": {
+                "enum": [
+                  "high",
+                  "low",
+                  "medium",
+                  "unknown"
+                ]
+              },
+              "author_expertise": {
+                "enum": [
+                  "high",
+                  "low",
+                  "medium",
+                  "unknown"
+                ]
+              },
+              "author_track_record": {
+                "enum": [
+                  "high",
+                  "low",
+                  "medium",
+                  "unknown"
+                ]
+              },
+              "notes": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "disposition": {
+            "enum": [
+              "background-only",
+              "cited",
+              "duplicate",
+              "failed-retrieval",
+              "irrelevant",
+              "rejected-unreliable",
+              "superseded-by-better-source"
+            ],
+            "description": "Why a retrieved source is or is not cited."
+          },
+          "disposition_note": {
+            "type": "string"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "statement",
+          "kind",
+          "status",
+          "importance",
+          "source_ids",
+          "contradicting_source_ids",
+          "rationale",
+          "falsifiers",
+          "last_checked"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "attributed",
+              "fact",
+              "forecast",
+              "inference",
+              "unknown"
+            ]
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "contested",
+              "probable",
+              "unknown",
+              "unsupported"
+            ]
+          },
+          "underlying_status": {
+            "enum": [
+              "confirmed",
+              "contested",
+              "probable",
+              "unknown",
+              "unsupported"
+            ],
+            "description": "For attributed claims: whether what the source asserted is itself established."
+          },
+          "importance": {
+            "enum": [
+              "context",
+              "load-bearing",
+              "supporting"
+            ]
+          },
+          "confidence_mode": {
+            "enum": [
+              "quantitative",
+              "qualitative"
+            ]
+          },
+          "confidence": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "confidence_limitations": {
+            "type": "string"
+          },
+          "source_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "contradicting_source_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "counter_search_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+            }
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "falsifiers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "last_checked": {
+            "type": "string",
+            "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "source_id",
+          "excerpt",
+          "location",
+          "supports_claim_ids",
+          "captured_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+          },
+          "kind": {
+            "enum": [
+              "artifact",
+              "excerpt"
+            ]
+          },
+          "source_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "excerpt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1
+          },
+          "supports_claim_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+            },
+            "minItems": 1
+          },
+          "captured_at": {
+            "type": "string",
+            "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+          }
+        }
+      }
+    },
+    "hypotheses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "statement",
+          "probability",
+          "basis_claim_ids",
+          "alternatives",
+          "update_triggers",
+          "rationale",
+          "resolution"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "probability": {
+            "type": "object",
+            "required": [
+              "low",
+              "central",
+              "high"
+            ],
+            "properties": {
+              "low": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "central": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "high": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "basis_claim_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+            },
+            "minItems": 1
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "update_triggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "counter_search_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+            }
+          },
+          "resolve_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unresolvable_reason": {
+            "type": "string"
+          },
+          "resolution": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "open",
+                  "resolved",
+                  "superseded"
+                ]
+              },
+              "outcome": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "resolved_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "outcome_value": {
+                "enum": [
+                  0,
+                  1
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "searches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "purpose",
+          "engine",
+          "query",
+          "run_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+          },
+          "question": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "purpose": {
+            "enum": [
+              "counter",
+              "gap",
+              "map",
+              "primary",
+              "support",
+              "update"
+            ]
+          },
+          "engine": {
+            "type": "string",
+            "minLength": 1
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "run_at": {
+            "type": "string",
+            "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+          },
+          "results_considered": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "source_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "coverage_gaps": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "description"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "access",
+                  "matrix-cell",
+                  "missing-primary",
+                  "not-researched",
+                  "other",
+                  "unresolved-contradiction",
+                  "unresolved-identity"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "candidate": {
+                "type": "string"
+              },
+              "criterion": {
+                "type": "string"
+              },
+              "claim_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+                }
+              },
+              "search_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": [
+        "deterministic_checks",
+        "independent_review",
+        "notes"
+      ],
+      "properties": {
+        "deterministic_checks": {
+          "type": "array"
+        },
+        "independent_review": {
+          "enum": [
+            "not-run",
+            "passed",
+            "findings",
+            "blocked"
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exact_revision": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string"
+        },
+        "findings_disposition": {
+          "type": "array"
+        },
+        "rereview_required": {
+          "type": "boolean"
+        },
+        "entailment_audit": {
+          "type": "object",
+          "required": [
+            "route",
+            "audited_at",
+            "items"
+          ],
+          "properties": {
+            "route": {
+              "type": "string",
+              "minLength": 1
+            },
+            "audited_at": {
+              "type": "string",
+              "description": "ISO-8601 date or date-time; date-only compares by UTC calendar day"
+            },
+            "seed": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "population": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "claim_id"
+                ],
+                "properties": {
+                  "claim_id": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+                  },
+                  "evidence_id": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Z][A-Z0-9_-]{1,31}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "excerpt_verdict": {
+                    "enum": [
+                      "contradicts",
+                      "partial",
+                      "supports",
+                      "unrelated",
+                      null
+                    ]
+                  },
+                  "prose_verdict": {
+                    "enum": [
+                      "contradicts",
+                      "faithful",
+                      "not-anchored",
+                      "overstates",
+                      "understates",
+                      null
+                    ]
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "disposition": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "minItems": 1
+            }
+          }
+        },
+        "coverage_review": {
+          "type": "object",
+          "required": [
+            "route",
+            "web_access",
+            "missing_evidence",
+            "disposition"
+          ],
+          "properties": {
+            "route": {
+              "type": "string",
+              "minLength": 1
+            },
+            "web_access": {
+              "type": "boolean"
+            },
+            "missing_evidence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "disposition": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

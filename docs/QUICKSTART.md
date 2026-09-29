@@ -1,6 +1,6 @@
 # Quickstart
 
-The deterministic report tooling runs with **Python 3.11+ and Git only**. That tooling does **not** conduct research autonomously: it does not retrieve sources, assess credibility, assign probabilities, or write conclusions. For the intended automated workflow, use the included skill with Hermes Agent, Claude Code, Codex, or OpenCode. Without an AI agent, a human can still fill the report schema manually and use Python to manage citations and validate the artifact.
+The deterministic report tooling runs with **Python 3.11+ and Git only** (plus `pdftotext` from poppler if you want `fetch` to read PDFs). That tooling does **not** conduct research autonomously: it retrieves and hashes the sources you point it at, but it does not choose what to search for, assess credibility, assign probabilities, or write conclusions. For the intended automated workflow, use the included skill with Hermes Agent, Claude Code, Codex, or OpenCode. Without an AI agent, a human can still fill the report schema manually and use Python to manage citations and validate the artifact.
 
 ## 1. Clone and test
 
@@ -57,49 +57,54 @@ The command prints the created directory and creates:
 
 Read `METHODOLOGY.md` and `SCHEMA.md` before assigning confidence.
 
-## 3. Register sources
+## 3. Map, search, and capture sources
+
+Record every substantive search, starting with an evidence map of what a specialist would expect the report to engage:
 
 ```bash
 REPORT=reports/2026/08/next-frontier-models
 
-python3 tools/reportctl.py add-source "$REPORT" \
-  https://example.com/source \
-  --title "Example source" \
-  --accessed 2026-08-31
+python3 tools/reportctl.py log-search "$REPORT" --question 1 --purpose map \
+  --engine "Google Scholar" --query "frontier model release cadence" --considered 15 \
+  --note "Canonical cadence analyses and vendor release histories to read"
 ```
 
-The command prints a stable numeric source ID. Registering the same URL again returns the existing ID.
-
-Populate the matching detailed source record in `assessment.json`: publisher, author evidence, source type, access, directness, independence group and rationale, incentives, limitations, and reliability dimensions. These values are analyst judgments supported by evidence; `reportctl.py` validates their shape and downstream consistency but does not invent or independently score them.
-
-## 4. Verify a short quotation
-
-Save or extract the source text to a local file, then attach an excerpt:
+Capture each source you actually read. `fetch` retrieves it, extracts text, stores it under its SHA-256, and registers the source:
 
 ```bash
-python3 tools/reportctl.py add-quote "$REPORT" 1 \
-  --text "Exact wording copied from the source." \
-  --from-file /path/to/extracted-source.txt
+python3 tools/reportctl.py fetch "$REPORT" https://example.com/source --title "Example source"
 ```
 
-The command refuses text not found in the evidence file. Do not commit full copyrighted source dumps; keep short excerpts in the ledger/assessment and URLs to public originals.
-
-`add-quote` verifies and records the ledger excerpt only. The preferred one-step path is `add-evidence`, which verifies the quotation, records it in the ledger, and appends the claim-facing `evidence` record in `assessment.json` so the two stay in agreement:
+When a site blocks scripted retrieval, renders with JavaScript, or serves a PDF without `pdftotext` installed, extract the text another way (a browser, a PDF tool, an archive copy) and record it:
 
 ```bash
-python3 tools/reportctl.py add-evidence "$REPORT" 1 \
+python3 tools/reportctl.py capture "$REPORT" https://example.com/source \
+  --from-file /tmp/source.txt --note "browser render after consent wall"
+```
+
+Snapshots go to the private, Git-ignored `.snapshots/` store (override with `DEEP_RESEARCH_SNAPSHOTS`). Add `--store report` only for text you may redistribute, such as US federal government works; it is then committed under the report's `evidence/snapshots/`.
+
+Populate the matching source record in `assessment.json`: publisher, source type, access, directness, independence group and rationale, incentives, limitations, and reliability. Author audits are optional. `reportctl.py` validates shape and consistency but does not score sources. Sources you retrieve but do not cite need a `disposition` and `disposition_note`.
+
+## 4. Attach verified excerpts
+
+```bash
+python3 tools/reportctl.py add-evidence "$REPORT" 1 --snapshot latest \
   --text "Exact wording copied from the source." \
-  --from-file /path/to/extracted-source.txt \
   --claim C1 --claim C2 \
   --location "section 3, paragraph 2" \
   --captured-at 2026-08-31T10:00:00Z
 ```
 
-The claim must already list the source in its `source_ids`. For non-text evidence (a figure, a specification-table cell, a commit), write the `evidence` entry by hand with `"kind": "artifact"` and a precise `location`; artifacts are exempt from the ledger-quote match. Any `excerpt`-kind entry without a verified ledger quote produces a validation warning; `validate --strict` promotes warnings to errors.
+The command refuses text absent from the snapshot, records the quotation in the ledger bound to the snapshot hash, and appends the claim-facing `evidence` record. The claim must already list the source in its `source_ids`. `--from-file` accepts an arbitrary text file instead, but such quotations are unbound and fail `validate --strict`. For non-text evidence (a figure, a table cell, a commit), write the entry by hand with `"kind": "artifact"` and a precise `location`.
+
+Run at least one `--purpose counter` search for each load-bearing inference, forecast and hypothesis, and link it through `counter_search_ids`. Record contradicting sources you find even when you weigh them less.
 
 ## 5. Draft and render citations
 
 Use `[1]`, `[2]`, and so on in `report.md`. When an entire paragraph uses the same source set, cite once at the paragraph end. Mixed-source paragraphs need sentence- or clause-local citations. Put a citation at the end of every data-bearing table row.
+
+Anchor each load-bearing claim where the prose asserts it, after the citation: `…fell 24%.[2]{C3}`. Build PDFs and HTML from `python3 tools/reportctl.py reader "$REPORT" --out reader.md`, which removes anchors.
 
 Generate the Sources block mechanically:
 
@@ -111,7 +116,7 @@ python3 tools/reportctl.py render-sources "$REPORT"
 
 ```bash
 python3 tools/reportctl.py validate "$REPORT"
-python3 tools/reportctl.py validate --strict "$REPORT"   # warnings become errors
+python3 tools/reportctl.py validate --strict --verify-snapshots "$REPORT"   # warnings become errors; snapshots re-verified
 python3 tools/reportctl.py --json validate "$REPORT"     # machine-readable result
 python3 tools/reportctl.py index
 python3 tools/reportctl.py index --check
@@ -120,9 +125,21 @@ python3 -m unittest discover -s tests -v
 git diff --check
 ```
 
-The validator checks source/claim/evidence integrity, independence-aware confidence guardrails, citation scope and coverage, report lineage, review state, and forecast requirements. Passing validation means the report satisfies the declared audit contract—not that Python has proven the report true.
+The validator checks source/claim/evidence integrity, snapshot provenance, claim anchors, independence-aware confidence guardrails, research-depth records, citation scope and coverage, report lineage, review state, and forecast requirements. Passing validation means the report satisfies the declared audit contract—not that Python has proven the report true.
 
-## 7. Update, score, and calibrate
+## 7. Audit meaning
+
+Draw a reproducible sample and give it to a judge other than the author (a different model family or a person):
+
+```bash
+python3 tools/reportctl.py audit-sample "$REPORT" --size 12 --out audit.json
+# the judge fills excerpt_verdict / prose_verdict / note for each item
+python3 tools/reportctl.py record-audit "$REPORT" --from-file audit.json --route "<judge and route>"
+```
+
+Every problem verdict needs a `disposition` describing the repair. For consequential reports, also obtain a coverage review from a reviewer with web access whose only task is finding decisive evidence the research missed, and record it in `review.coverage_review`.
+
+## 8. Update, score, and calibrate
 
 When new evidence arrives after a report's cutoff, do not edit the old report. Create a linked successor:
 
@@ -138,9 +155,10 @@ When a hypothesis resolves, record the outcome without touching its original ran
 ```bash
 python3 tools/reportctl.py resolve reports/2026/08/next-frontier-models H1 --outcome true --at 2026-10-15
 python3 tools/reportctl.py calibration
+python3 tools/reportctl.py due    # open hypotheses whose resolve_by date has arrived
 ```
 
-## 8. Publish or integrate
+## 9. Publish or integrate
 
 The included GitHub Actions workflow runs the same checks on pushes and pull requests. Other agents and applications can consume:
 

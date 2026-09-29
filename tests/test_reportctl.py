@@ -179,7 +179,7 @@ class ReportCtlTests(unittest.TestCase):
             reportctl.add_source(target, "https://example.org/uncited", "Uncited source", "2026-08-31")
             assessment = json.loads((target / "assessment.json").read_text())
             second = dict(assessment["sources"][0])
-            second.update({"id": 2, "url": "https://example.org/uncited", "title": "Uncited source"})
+            second.update({"id": 2, "url": "https://example.org/uncited", "title": "Uncited source", "disposition": "background-only", "disposition_note": "Consulted for context; adds nothing citable."})
             assessment["sources"].append(second)
             (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
             reportctl.render_sources(target)
@@ -308,13 +308,16 @@ class ReportCtlTests(unittest.TestCase):
                 reportctl.validate_report(target),
             )
 
-    def test_cutoff_cannot_postdate_creation(self) -> None:
+    def test_cutoff_cannot_postdate_last_update(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             target = self.copy_fixture(temporary)
             assessment = json.loads((target / "assessment.json").read_text())
             assessment["report"]["created"] = "2026-08-30T00:00:00Z"
             (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
-            self.assertIn("report.cutoff must not be after report.created", reportctl.validate_report(target))
+            self.assertEqual([], reportctl.validate_report(target), "a draft may be scaffolded before its evidence window closes")
+            assessment["report"]["updated"] = "2026-08-30T12:00:00Z"
+            (target / "assessment.json").write_text(json.dumps(assessment, indent=2) + "\n")
+            self.assertIn("report.cutoff must not be after report.updated", reportctl.validate_report(target))
 
     def test_minimal_fixture_validates(self) -> None:
         fixture = ROOT / "tests" / "fixtures" / "minimal-report"

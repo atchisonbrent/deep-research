@@ -10,3 +10,5 @@ auth.json
 credentials.json
 *.key
 *.pem
+# Private source snapshot store (see SCHEMA.md, Snapshots)
+.snapshots/

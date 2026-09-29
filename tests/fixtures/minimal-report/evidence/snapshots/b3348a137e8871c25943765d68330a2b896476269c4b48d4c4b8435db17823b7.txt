@@ -1,0 +1,3 @@
+Example public record
+
+The event occurred. The organizer published this record on 30 August 2026. It describes the schedule, the venue and the expected attendance, but it contains no independent measurement of attendance and no third-party confirmation.

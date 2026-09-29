@@ -16,7 +16,7 @@ assessment: assessment.json
 
 ## Verdict
 
-The directly inspected record says the event occurred.[1]
+The directly inspected record says the event occurred.[1]{C1}
 
 The best current assessment is therefore that the event probably occurred.[1]
 

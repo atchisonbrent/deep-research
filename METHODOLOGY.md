@@ -1,11 +1,5 @@
 # Deep Research Methodology
 
-Non-forecast claims may opt into the explicit qualitative contract in
-[SCHEMA.md](SCHEMA.md). Numerical status floors, independence caps and interval
-widths apply only to numerical ranges. Qualitative status is an evidence-backed
-judgment, not a concealed probability; source-group, evidence and citation checks
-remain mandatory.
-
 ## Objective
 
 Produce the best-supported decision-grade answer to a substantial research question while making the evidence chain, uncertainty, source dependence, analytical judgment, and likely failure modes visible.
@@ -13,6 +7,8 @@ Produce the best-supported decision-grade answer to a substantial research quest
 The method applies to current and historical events, technology landscapes and states of practice, market and company analysis, entity background, policy and legal-regulatory analysis, scientific synthesis, security incidents, comparative research, product-category landscapes, due diligence, and forecasts such as likely AI model release windows. Each mode has a reference file under `skills/deep-research/references/modes/` that fixes its evidence hierarchy, gates, and output shape. A report may explain what happened, compare alternatives, establish the current state of a field, or estimate what is likely next.
 
 This is not a promise of objective omniscience. It is a repeatable method for being less wrong and easier to correct.
+
+Two failure modes dominate AI-assisted research, and the method is organized against them. The first is **shallow retrieval**: a report that is accurate about everything it read but did not read what a specialist would consider decisive, then labels the unanswered question "unknown." The second is **correspondence without support**: citations that resolve and quotations that match, attached to prose that says something the evidence does not. Sections 3, 5 and 10 address the first; sections 9 and 12 the second.
 
 ## 1. Frame the research question
 
@@ -42,7 +38,15 @@ Do not research a slogan such as “the program was destroyed,” “Model X lau
 
 Atomic claims make contradictions and partial truth visible.
 
-## 3. Build a source map, not a link pile
+## 3. Map the evidence landscape, then build a source map
+
+Before collecting support for any conclusion, list for each decision question what a specialist would expect a serious answer to engage: canonical studies and reviews, the most recent authoritative work, official data series, audits, filings, budgets and court records that measure the thing directly, and the best-informed advocates on each side. Search scholarly indexes for empirical questions, and follow citation trails backward from the strongest recent work and forward to work that cites it. Record these searches in the report's search log (`log-search --purpose map`).
+
+The map is a checklist to close, not a bibliography to admire. Each item is eventually read, shown unavailable by logged searches, or dismissed with a reason. A summary—a literature review, a government explainer, a news account of a study—is a pointer to primary work; retrieve the primary work for load-bearing uses.
+
+Prefer depth to breadth. A report with seven decision questions and eighty sources has roughly ten sources per question; one with two decisive questions and the same effort can actually settle them.
+
+### Source classes
 
 Seek distinct evidence classes:
 
@@ -80,7 +84,8 @@ The classic Admiralty insight is useful: **source reliability and information cr
 
 - **Kind:** observed fact, attributed statement, inference, forecast, or unknown.
 - **Status:** confirmed, probable, contested, unsupported, or unknown.
-- **Confidence range:** bounded probability, not a cosmetic adjective.
+- **Confidence range:** bounded probability, not a cosmetic adjective. Non-forecast claims may instead use the explicit qualitative contract in `SCHEMA.md`, where `status` is an evidence-backed judgment rather than a concealed probability; evidence, independence and citation checks still apply. Forecasts and hypotheses stay numerical.
+- **Attribution versus truth:** for attributed claims, `status` records whether the source said it and `underlying_status` whether what it said is established. An agency's own statistics can be confirmed as reported and still be unaudited.
 - **Supporting and contradicting sources.**
 - **Evidence excerpts:** short verbatim text or public artifact coordinates.
 - **Independence:** whether supporting sources originate from genuinely separate evidence paths.
@@ -110,9 +115,9 @@ label without its basis is taxonomy, not an audit trail.
 
 ## 6. Handle authors honestly
 
-A byline matters when the author’s beat, access, method, or record is relevant. It is not a celebrity score.
+A byline matters when the author’s beat, access, method, or record is relevant. It is not a celebrity score. Author audits are optional in the schema: do them when an author's expertise or record bears on a load-bearing claim, especially a single-source one, and skip them otherwise rather than filling fields with `unknown`.
 
-Record:
+When you do record an author, include:
 
 - visible byline names;
 - role or beat when stated by the publisher;
@@ -146,7 +151,8 @@ For release timelines, market moves, or product roadmaps:
 - separate model existence, internal testing, API availability, preview, general availability, and regional rollout;
 - use release windows rather than a single day unless the date is formally committed;
 - record base rates, dependencies, blockers, and explicit update triggers;
-- preserve resolved misses and score them later instead of editing the old forecast.
+- preserve resolved misses and score them later instead of editing the old forecast;
+- give each open hypothesis a `resolve_by` date on which it can be scored, or an `unresolvable_reason`.
 
 ### Product-category boundary
 
@@ -164,7 +170,19 @@ Use these labels in prose and structured data:
 
 A confident sentence must not quietly change category halfway through.
 
-## 9. Citation discipline
+## 9. Provenance, anchors, and citation discipline
+
+### Provenance
+
+Capture the text of every source actually read with `reportctl.py fetch` (or `capture` for browser renders, PDF extractions and archive copies). The tool stores the extracted text under its SHA-256 and records retrieval metadata in the ledger. `add-evidence --snapshot` then verifies each quotation against that stored text and binds the quotation to the hash. Anyone holding the snapshot store can re-verify every quotation, and edited text no longer matches its hash. This is a much stronger claim than "the quotation appears in a file the analyst supplied," which is all `--from-file` can establish.
+
+Snapshots are private by default and live outside Git. Commit them beside the report only when the text may be redistributed, such as US federal government works or openly licensed papers. Back up the private store with the vault.
+
+### Anchors
+
+Mark where the prose asserts each load-bearing claim by placing the claim ID after the citation: `…fell 24%.[2]{C3}`. Anchors make the report's argument traceable to its ledger: the validator checks that an anchored passage cites only sources its claims list and that factual claims cite their own support, and a semantic reviewer can compare the passage with the claim it is supposed to express. Build presentation editions from `reportctl.py reader`, which removes anchors.
+
+### Citation rules
 
 Use a report-local `sources-ledger.json` with stable numeric IDs.
 
@@ -175,22 +193,25 @@ Use a report-local `sources-ledger.json` with stable numeric IDs.
 - Cite the primary record for what it says and independent reporting for interpretation or context.
 - A citation to a source repeating another source is not independent corroboration.
 - Never cite a search snippet as though the full page was read; mark access as `snippet`.
-- Attach short verbatim evidence excerpts for load-bearing claims, recorded through `add-evidence` (or `add-quote` plus a matching evidence entry) so the excerpt is provably checked against fetched text. Use `kind: artifact` for figures, table cells, and other non-text coordinates.
+- Attach short verbatim evidence excerpts for load-bearing claims through `add-evidence --snapshot`, so each excerpt is checked against captured source text. Use `kind: artifact` for figures, table cells, and other non-text coordinates.
 - Cite data-bearing table rows; tables are not exempt from coverage. Header rows are labels, not evidence, and are not counted.
 - `[unverified]` is an uncertainty marker, not a citation and not coverage credit.
 
-## 10. Coverage and stopping rules
+## 10. Coverage, disconfirmation, and stopping rules
+
+Seek disconfirmation with the same intensity as support. For every load-bearing inference, forecast and hypothesis, run and log at least one search designed to prove it wrong, and record what it finds as contradicting sources even when that evidence is ultimately weighed less. Balance is symmetric search effort, not symmetric conclusions.
 
 Continue retrieval until:
 
-- every load-bearing claim has direct evidence or is labeled inference/unknown;
-- the strongest credible counter-account was sought;
-- source dependence is mapped;
-- important numbers have scope and date;
-- author/source gaps are visible;
-- further sources are mostly repeating known evidence.
+- every evidence-map item is read, shown unavailable by logged searches, or dismissed with a reason;
+- every load-bearing claim has direct evidence or is labeled inference/unknown, and secondary-only support has been traced to primary work or recorded as a missing-primary gap;
+- the strongest credible counter-account was sought and logged;
+- every retrieved source is either cited or carries a disposition explaining why not—strong, recent, directly relevant evidence that was found and not used is a defect, not tidiness;
+- every gap that says evidence is missing or inaccessible links the searches that tried;
+- source dependence is mapped, and important numbers have scope and date;
+- further searches on each decisive question mostly return evidence already held.
 
-Stop and state degraded coverage when access barriers, language, censorship, safety, or time prevent that standard.
+A decisive question may be reported as unresolved only after the evidence that could resolve it has been sought. Stop and state degraded coverage when access barriers, language, censorship, safety, or time prevent that standard; say which checklist items remain open.
 
 ## 11. Update policy
 
@@ -205,11 +226,18 @@ An update must identify:
 
 Use `reportctl.py supersede` to create the successor: it records `lineage.supersedes` in the new report, sets the old report's status to `superseded`, and points `lineage.superseded_by` at the successor. The validator checks existence and chronological cutoff order.
 
-Never edit an old forecast until it looks prescient. Preserve the miss; that is how calibration improves. Score hypotheses after the fact with `reportctl.py resolve`, and review the vault-wide record with `reportctl.py calibration`. A forecast that is never scored was a mood, not a forecast.
+Never edit an old forecast until it looks prescient. Preserve the miss; that is how calibration improves. `reportctl.py due` lists open hypotheses whose `resolve_by` date has arrived; run it on a schedule. Score them with `reportctl.py resolve`, and review the vault-wide record with `reportctl.py calibration`. A forecast that is never scored was a mood, not a forecast. Until dozens of outcomes are scored, the record is a ledger of hits and misses, not evidence of calibration.
 
-## 12. Independent review
+## 12. Semantic audit and independent review
 
-Use an independent reviewer for high-stakes or architecture-shaping reports. Ask it to challenge:
+Deterministic checks establish correspondence: IDs resolve, quotations appear in captured text, anchored passages cite their claims' sources. They cannot establish that an excerpt entails a claim or that prose says what its claim says. Close that gap by sampling. `reportctl.py audit-sample` draws a reproducible sample of claim, excerpt-in-context, and anchored-prose triples; a judge other than the author records, for each, whether the excerpt supports the claim and whether the prose is faithful to it. Problem verdicts need recorded repairs. The sample's problem rate is an estimate of the report's error rate and belongs in the review record.
+
+Independent review has two lenses, and they need different access:
+
+1. **Correspondence review** works from the report, assessment, ledger, snapshots and prose-pass diff. It tests whether the evidence entails the prose.
+2. **Coverage review** gets web access and one task: find decisive evidence the research missed. A reviewer confined to the supplied files cannot detect omissions, so without this lens depth is never reviewed at all.
+
+For either lens, ask the reviewer to challenge:
 
 - missing alternatives;
 - double-counted sources;

@@ -1,0 +1,8 @@
+{
+  "sha256": "b3348a137e8871c25943765d68330a2b896476269c4b48d4c4b8435db17823b7",
+  "method": "capture",
+  "url": "https://example.com/source",
+  "final_url": "https://example.com/source",
+  "retrieved_at": "2026-08-31T10:00:00Z",
+  "note": "Synthetic fixture text."
+}
